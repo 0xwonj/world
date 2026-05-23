@@ -31,8 +31,13 @@ The frontend is not the source of truth. The simulation core is.
 ## Docs
 
 - [Vision](docs/vision.md)
+- Research
+  - [Reference Research Questions](docs/research/reference-questions.md)
 - References
   - [Caves of Qud](docs/references/caves-of-qud.md)
+- Ideas
+  - [Capability-Derived Actions](docs/ideas/capability-derived-actions.md)
+  - [Knowledge, History, And Belief](docs/ideas/knowledge-history-and-belief.md)
 - Brainstorming
   - [Content Systems](docs/brainstorming/content-systems.md)
   - [Agent Interface](docs/brainstorming/agent-interface.md)
@@ -41,4 +46,3 @@ The frontend is not the source of truth. The simulation core is.
   - [Simulation Core](docs/design/simulation-core.md)
   - [Action and Event Model](docs/design/action-event-model.md)
   - [Perception and Knowledge](docs/design/perception-and-knowledge.md)
-
