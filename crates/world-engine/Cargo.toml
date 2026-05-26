@@ -1,0 +1,17 @@
+[package]
+name = "world-engine"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+world-authoring = { path = "../world-authoring" }
+world-context = { path = "../world-context" }
+world-core = { path = "../world-core" }
+world-decision = { path = "../world-decision" }
+world-defs = { path = "../world-defs" }
+world-model = { path = "../world-model" }
+world-runtime = { path = "../world-runtime" }
+
+[lints]
+workspace = true

@@ -2,7 +2,16 @@
 
 ## Status
 
-Candidate
+Promoted source history.
+
+## Promotion Note
+
+Stable memory, belief, knowledge, rumor, and secret terminology from this idea
+has been promoted into [Epistemic State](../design/epistemic-state.md).
+Social-ownership terminology is owned by
+[Social Institutional Model](../design/social-institutional-model.md), and
+truth-layer authority is owned by
+[Truth, Authority, And Layer Boundaries](../design/truth-authority-and-layer-boundaries.md).
 
 ## Core Idea
 
@@ -169,12 +178,11 @@ This distinction matters for both NPC behavior and AI-agent input.
   world itself?
 - How should contradictory accounts be represented?
 - How should an AI agent receive knowledge without receiving omniscient truth?
-- What information should change available actions versus only changing action
-  ranking or expected consequences?
+- What information should change actor-owned action repertoire, perceived
+  affordances, action ranking, or expected consequences?
 
 ## Related References
 
 - [Caves of Qud](../references/caves-of-qud.md)
-- [Perception and Knowledge](../design/perception-and-knowledge.md)
-- [Capability-Derived Actions](capability-derived-actions.md)
-
+- [Perception And Observation](../design/perception-and-observation.md)
+- [Actor-Owned Capability-Derived Actions](capability-derived-actions.md)

@@ -34,19 +34,3 @@ No client should own game truth. Clients observe state and submit actions.
 - Systemic content: prefer reusable rules over one-off scripted exceptions.
 - Debuggability: every surprising result should be explainable from state,
   rules, actions, and events.
-
-## Initial Vertical Slice
-
-The first playable slice should be intentionally small:
-
-- 20x20 grid map.
-- One human-controlled player.
-- Three NPCs.
-- Movement, inspection, pickup, use, talk, attack, wait.
-- Basic field-of-view and hearing.
-- Basic inventory and item tags.
-- Basic faction/reputation relation.
-- Rule-based NPC agent.
-- LLM-agent adapter behind the same agent interface.
-- Event log replay.
-

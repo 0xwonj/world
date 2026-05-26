@@ -1,0 +1,12 @@
+[package]
+name = "world-model"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+world-core = { path = "../world-core" }
+world-defs = { path = "../world-defs" }
+
+[lints]
+workspace = true

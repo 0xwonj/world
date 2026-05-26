@@ -93,8 +93,8 @@ when those details are useful.
 - Can actors hold false beliefs?
 - Are rumors, laws, recipes, secrets, names, maps, histories, and faction
   symbols gameplay state?
-- Does knowledge change available actions, dialogue, trade, travel, or social
-  outcomes?
+- Does knowledge change action repertoire, perceived affordances, dialogue,
+  trade, travel, or social outcomes?
 - Is player knowledge separated from character knowledge?
 
 ### Entity, Body, Item, and Terrain Grammar
@@ -147,8 +147,8 @@ when those details are useful.
   path?
 - What observation would an external AI agent need to act without receiving
   omniscient state?
-- Is the action space fully enumerated, represented as schemas, inferred from
-  local affordances, or free-form?
+- Is the action interface fully enumerated, represented as actor-owned schemas
+  plus perceived affordances, or free-form?
 - How are invalid actions handled?
 - Does the engine own agent memory, or can agents keep private external notes?
 - How much context would need to be serialized for a language-model agent?

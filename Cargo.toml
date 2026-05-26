@@ -1,0 +1,26 @@
+[workspace]
+members = [
+    "crates/world-authoring",
+    "crates/world-context",
+    "crates/world-core",
+    "crates/world-decision",
+    "crates/world-defs",
+    "crates/world-engine",
+    "crates/world-model",
+    "crates/world-runtime",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"

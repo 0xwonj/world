@@ -14,6 +14,8 @@ Ideas can later be promoted into `docs/design/`, revised, split, or rejected.
 - `Candidate`: promising enough to compare against other ideas.
 - `Accepted`: adopted as a design principle and should be reflected in
   `docs/design/`.
+- `Promoted source history`: stable content has moved into `docs/design/`;
+  the idea remains as historical context and may use older terminology.
 - `Rejected`: intentionally not adopted, with the reason preserved.
 
 ## Working Rules
