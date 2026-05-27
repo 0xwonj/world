@@ -1,0 +1,29 @@
+/// Authority layer for gameplay-relevant state.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AuthorityClass {
+    /// Physical and causal truth committed through causal runtime.
+    Hard,
+    /// Durable runtime control state updated through runtime-control authority gates.
+    RuntimeControl,
+    /// Social or institutional soft truth committed through a social gate.
+    Social,
+    /// Authored, generated, or accepted world-context chronology.
+    Chronology,
+    /// Holder-relative perception, memory, belief, or knowledge.
+    ActorTruth,
+    /// Accepted appraisal and motivation state.
+    Appraisal,
+}
+
+/// Declared replay strength for committed runtime records.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ReplayLevel {
+    /// Inspect committed records, ordering, validation context, and provenance.
+    AuditOnly,
+    /// Rebuild consequences from committed transaction and event history.
+    EventRebuild,
+    /// Rerun accepted input logs and expect matching transactions and events.
+    DeterministicCommandReplay,
+}

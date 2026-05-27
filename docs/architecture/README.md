@@ -33,11 +33,14 @@ It does not replace:
   policies that should be fixed before implementation details.
 - [Implementation Plan](implementation-plan.md): high-level phased build order,
   implementation principles, and phase exit conditions.
+- [Implementation Execution Contract](implementation-execution-contract.md):
+  mandatory agent workflow, public API guardrails, review gates, and phase
+  completion checks for long-running implementation runs.
 
 Recommended reading order:
 
 ```text
-roadmap.md -> ADR.md -> engine.md -> runtime-pipeline.md -> crates.md -> project-conventions.md -> implementation-plan.md
+roadmap.md -> ADR.md -> engine.md -> runtime-pipeline.md -> crates.md -> project-conventions.md -> implementation-plan.md -> implementation-execution-contract.md
 ```
 
 Planned later:

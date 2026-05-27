@@ -130,6 +130,11 @@ corrupted save or registry
 Library error enums should use typed errors. `thiserror` is the preferred
 candidate when an error crate is needed.
 
+`world-core` should avoid an error helper crate while its error surface remains
+small. Manual `Display` and `Error` implementations keep the foundational crate
+lean and make dependency additions explicit. Higher-level crates can use
+`thiserror` once the error enum is domain-rich enough to benefit from derives.
+
 Reason:
 
 Failed gameplay attempts are part of the simulation. Treating them as Rust
