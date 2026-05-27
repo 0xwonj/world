@@ -19,17 +19,6 @@ The frontend is not the source of truth. The simulation core is.
   environment, tools, rituals, mutations, and social relationships should
   combine into emergent behavior.
 
-## Initial Questions
-
-- What does `WorldState` own?
-- What is the boundary between `ActionRequest`, `CausalTransaction`,
-  `EventRecord`, and state?
-- How are perception, epistemic state, memory, and knowledge represented?
-- What exact schema does an AI agent receive each turn?
-- How can content be authored without hardcoding every special case?
-- How do we keep committed outcomes auditable, explainable, and replayable
-  where needed?
-
 ## Docs
 
 - [Vision](docs/vision.md)
@@ -51,6 +40,7 @@ The frontend is not the source of truth. The simulation core is.
   - [World Model](docs/design/world-model.md)
   - [Physical Simulation Grammar](docs/design/physical-simulation-grammar.md)
   - [Typed Effect Primitives](docs/design/typed-effect-primitives.md)
+  - [Standard World Library And Primitive Semantics](docs/design/standard-world-library.md)
   - [Causal Runtime](docs/design/causal-runtime.md)
   - [Action And Event Model](docs/design/action-event-model.md) terminology sketch
   - [Time Model](docs/design/time-model.md)

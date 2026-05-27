@@ -170,12 +170,13 @@ The architecture should be stabilized in this order:
 2. WorldModel, identity, and relation storage
 3. Typed Effect Program and transaction interpreter
 4. Time, EventHistoryStore, replay, and ProcessInstance
-5. Pack compiler, DefinitionRegistry, and diagnostics
-6. Actor context and access-controlled query surfaces
-7. Semantic decision middle-end
-8. Multi-resolution execution
-9. Accelerator and plugin boundaries
-10. Crate boundary architecture
+5. Standard world library and primitive semantics
+6. Pack compiler, DefinitionRegistry, and diagnostics
+7. Actor context and access-controlled query surfaces
+8. Semantic decision middle-end
+9. Multi-resolution execution
+10. Accelerator and plugin boundaries
+11. Crate boundary architecture
 ```
 
 The ordering is not a claim that later systems are less important. It is a
@@ -392,7 +393,51 @@ Exit condition:
 The architecture can replay or explain a long-running activity across save/load
 and resolution changes without relying on hidden runtime call stacks.
 
-## Stage 5: Pack Compiler, DefinitionRegistry, And Diagnostics
+## Stage 5: Standard World Library And Primitive Semantics
+
+Purpose:
+
+Define the reusable primitive layer between runtime mechanism and game-system
+packs.
+
+Core shape:
+
+```text
+EffectPrimitiveDef
+  -> standard primitive definition bundle
+  -> trusted primitive semantics installer
+  -> PrimitiveSemanticsRegistry
+  -> Typed Effect Program execution through CausalRuntime staging
+```
+
+Decisions to lock:
+
+- primitive definition versus primitive semantics split
+- standard-world layer outside runtime core
+- registry lookup and missing-handler behavior
+- trusted semantics installer boundary
+- pack composition of installed primitives
+- actor-context access to pure standard vocabulary without runtime authority
+
+Implementation-oriented conclusion:
+
+Do not grow the physical, damage, condition, signal, resource, and process
+primitive vocabulary directly inside the runtime core. Do not give ordinary
+packs raw mutation callbacks. Use installed trusted semantics through runtime
+staging capabilities.
+
+Architecture risk if skipped:
+
+The engine will drift toward either a hardcoded runtime-owned RPG system or an
+overly generic pack scripting model with weak authority boundaries.
+
+Exit condition:
+
+The architecture can explain how standard primitive definitions and trusted
+semantics are installed, checked, dispatched, and kept separate from both
+runtime commit authority and pack-owned gameplay vocabulary.
+
+## Stage 6: Pack Compiler, DefinitionRegistry, And Diagnostics
 
 Purpose:
 
@@ -440,7 +485,7 @@ The architecture can describe how an action definition, process definition,
 social rule, appraisal rule, intent template, and semantic view become
 verified registry entries with source spans and diagnostics.
 
-## Stage 6: Actor Context And Access-Controlled Query Surfaces
+## Stage 7: Actor Context And Access-Controlled Query Surfaces
 
 Purpose:
 
@@ -480,7 +525,7 @@ Exit condition:
 The architecture can explain why a wounded hand changes lockpicking validation
 and scoring without hardcoding the action as globally unavailable.
 
-## Stage 7: Semantic Decision Middle-End
+## Stage 8: Semantic Decision Middle-End
 
 Purpose:
 
@@ -530,7 +575,7 @@ observation, belief/context, `Thought`, `Pressure`, `GoalPressure`,
 `CandidateIntent`, selected `Intent`, `Activity`, and either local
 `ActionRequest` or abstract `ProcessInstance`.
 
-## Stage 8: Multi-Resolution Execution
+## Stage 9: Multi-Resolution Execution
 
 Purpose:
 
@@ -579,7 +624,7 @@ The architecture can explain abstract travel as `ProcessInstance` progress,
 not repeated hidden movement requests, while still producing durable
 consequences and promotion-ready provenance.
 
-## Stage 9: Accelerator And Plugin Boundaries
+## Stage 10: Accelerator And Plugin Boundaries
 
 Purpose:
 
@@ -626,7 +671,7 @@ Exit condition:
 The architecture can say for each library class whether it is authority,
 projection, compiler tooling, runtime accelerator, or plugin boundary.
 
-## Stage 10: Crate Boundary Architecture
+## Stage 11: Crate Boundary Architecture
 
 Purpose:
 
@@ -711,6 +756,8 @@ The current stable direction is:
 - Keep current state materialized; use event history for replay, audit,
   observation, and semantic evidence.
 - Keep `Typed Effect Program` as a separate checked hard-mutation IR.
+- Keep standard world primitive definitions and trusted semantics outside the
+  runtime core while executing them only through runtime staging capabilities.
 - Keep semantic declarations stage-gated and non-authoritative over hard truth.
 - Keep `Intent` as commitment boundary.
 - Keep `Activity` as temporal execution boundary.

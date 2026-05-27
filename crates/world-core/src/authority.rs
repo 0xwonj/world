@@ -16,6 +16,20 @@ pub enum AuthorityClass {
     Appraisal,
 }
 
+/// Runtime source class preserved on causal transaction records.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CausalSource {
+    /// Player-facing command source.
+    Player,
+    /// Actor policy source.
+    ActorPolicy,
+    /// Engine-owned source.
+    Engine,
+    /// Tooling or test harness source.
+    Tooling,
+}
+
 /// Declared replay strength for committed runtime records.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1,16 +1,21 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use world_core::{
-    CausalTransactionId, DefinitionId, EventRecordId, ProvenanceKey, SimulationTime, StoreCursor,
+    CausalSource, CausalTransactionId, DefinitionId, EntityId, EventRecordId, ProvenanceKey,
+    ReplayLevel, SimulationTime, StoreCursor,
 };
+use world_defs::{EventRecordSpec, RoleName};
 
-#[cfg(test)]
 use crate::ModelError;
 
 /// Committed transaction metadata stored by event history.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransactionRecord {
     id: CausalTransactionId,
+    source: CausalSource,
+    action: DefinitionId,
+    effect_program: DefinitionId,
+    replay_level: ReplayLevel,
     occurred_at: SimulationTime,
     provenance: Option<ProvenanceKey>,
 }
@@ -19,6 +24,26 @@ impl TransactionRecord {
     /// Returns the transaction id.
     pub const fn id(&self) -> CausalTransactionId {
         self.id
+    }
+
+    /// Returns the runtime source that submitted the transaction.
+    pub const fn source(&self) -> CausalSource {
+        self.source
+    }
+
+    /// Returns the action definition accepted by runtime validation.
+    pub const fn action(&self) -> DefinitionId {
+        self.action
+    }
+
+    /// Returns the effect program definition interpreted for this transaction.
+    pub const fn effect_program(&self) -> DefinitionId {
+        self.effect_program
+    }
+
+    /// Returns declared replay strength for this transaction.
+    pub const fn replay_level(&self) -> ReplayLevel {
+        self.replay_level
     }
 
     /// Returns the simulation time of the transaction.
@@ -32,18 +57,49 @@ impl TransactionRecord {
     }
 }
 
-#[cfg(test)]
 impl TransactionRecord {
     pub(crate) const fn new(
         id: CausalTransactionId,
+        source: CausalSource,
+        action: DefinitionId,
+        effect_program: DefinitionId,
+        replay_level: ReplayLevel,
         occurred_at: SimulationTime,
         provenance: Option<ProvenanceKey>,
     ) -> Self {
         Self {
             id,
+            source,
+            action,
+            effect_program,
+            replay_level,
             occurred_at,
             provenance,
         }
+    }
+}
+
+/// Entity bound to one role in an emitted event record.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EventRoleBinding {
+    role: RoleName,
+    entity: EntityId,
+}
+
+impl EventRoleBinding {
+    /// Creates an event-role binding from checked runtime bindings.
+    pub fn new(role: RoleName, entity: EntityId) -> Self {
+        Self { role, entity }
+    }
+
+    /// Returns the event role name.
+    pub fn role(&self) -> &RoleName {
+        &self.role
+    }
+
+    /// Returns the entity bound to the event role.
+    pub const fn entity(&self) -> EntityId {
+        self.entity
     }
 }
 
@@ -52,7 +108,8 @@ impl TransactionRecord {
 pub struct EventRecord {
     id: EventRecordId,
     transaction: CausalTransactionId,
-    event_definition: DefinitionId,
+    spec: EventRecordSpec,
+    roles: Vec<EventRoleBinding>,
     occurred_at: SimulationTime,
     provenance: Option<ProvenanceKey>,
 }
@@ -68,9 +125,14 @@ impl EventRecord {
         self.transaction
     }
 
-    /// Returns the checked event definition id.
-    pub const fn event_definition(&self) -> DefinitionId {
-        self.event_definition
+    /// Returns the checked event record spec committed by runtime.
+    pub fn spec(&self) -> &EventRecordSpec {
+        &self.spec
+    }
+
+    /// Returns runtime role bindings captured with the event record.
+    pub fn roles(&self) -> &[EventRoleBinding] {
+        &self.roles
     }
 
     /// Returns the simulation time of the event.
@@ -84,19 +146,20 @@ impl EventRecord {
     }
 }
 
-#[cfg(test)]
 impl EventRecord {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         id: EventRecordId,
         transaction: CausalTransactionId,
-        event_definition: DefinitionId,
+        spec: EventRecordSpec,
+        roles: Vec<EventRoleBinding>,
         occurred_at: SimulationTime,
         provenance: Option<ProvenanceKey>,
     ) -> Self {
         Self {
             id,
             transaction,
-            event_definition,
+            spec,
+            roles,
             occurred_at,
             provenance,
         }
@@ -122,7 +185,6 @@ impl StoredTransactionRecord {
     }
 }
 
-#[cfg(test)]
 impl StoredTransactionRecord {
     fn new(record: TransactionRecord, cursor: StoreCursor) -> Self {
         Self { record, cursor }
@@ -148,7 +210,6 @@ impl StoredEventRecord {
     }
 }
 
-#[cfg(test)]
 impl StoredEventRecord {
     fn new(record: EventRecord, cursor: StoreCursor) -> Self {
         Self { record, cursor }
@@ -163,6 +224,23 @@ pub struct EventHistoryStore {
     transaction_order: BTreeMap<StoreCursor, CausalTransactionId>,
     events: BTreeMap<EventRecordId, StoredEventRecord>,
     event_order: BTreeMap<StoreCursor, EventRecordId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct EventHistoryAppendPlan {
+    transaction_cursor: StoreCursor,
+    event_cursors: Vec<StoreCursor>,
+    next_cursor: StoreCursor,
+}
+
+impl EventHistoryAppendPlan {
+    pub(crate) const fn transaction_cursor(&self) -> StoreCursor {
+        self.transaction_cursor
+    }
+
+    pub(crate) fn event_cursors(&self) -> &[StoreCursor] {
+        &self.event_cursors
+    }
 }
 
 impl Default for EventHistoryStore {
@@ -218,8 +296,67 @@ impl EventHistoryStore {
     }
 }
 
-#[cfg(test)]
 impl EventHistoryStore {
+    pub(crate) fn plan_append(
+        &self,
+        transaction: CausalTransactionId,
+        events: &[EventRecordId],
+    ) -> Result<EventHistoryAppendPlan, ModelError> {
+        if self.transactions.contains_key(&transaction) {
+            return Err(ModelError::DuplicateTransaction { transaction });
+        }
+
+        let mut seen_events = BTreeSet::new();
+        for event in events {
+            if self.events.contains_key(event) || !seen_events.insert(*event) {
+                return Err(ModelError::DuplicateEvent { event: *event });
+            }
+        }
+
+        let mut cursor = self.next_cursor;
+        let mut cursors = Vec::with_capacity(events.len() + 1);
+        for _ in 0..=events.len() {
+            let Some(next) = cursor.next() else {
+                return Err(ModelError::StoreCursorExhausted);
+            };
+            cursors.push(cursor);
+            cursor = next;
+        }
+
+        let transaction_cursor = cursors[0];
+        let event_cursors = cursors[1..].to_vec();
+        Ok(EventHistoryAppendPlan {
+            transaction_cursor,
+            event_cursors,
+            next_cursor: cursor,
+        })
+    }
+
+    pub(crate) fn append_planned(
+        &mut self,
+        transaction: TransactionRecord,
+        events: Vec<EventRecord>,
+        plan: &EventHistoryAppendPlan,
+    ) {
+        let transaction_id = transaction.id();
+        self.transactions.insert(
+            transaction_id,
+            StoredTransactionRecord::new(transaction, plan.transaction_cursor),
+        );
+        self.transaction_order
+            .insert(plan.transaction_cursor, transaction_id);
+
+        for (event, cursor) in events.into_iter().zip(plan.event_cursors.iter().copied()) {
+            let event_id = event.id();
+            self.events
+                .insert(event_id, StoredEventRecord::new(event, cursor));
+            self.event_order.insert(cursor, event_id);
+        }
+
+        self.next_cursor = plan.next_cursor;
+    }
+
+    #[cfg(test)]
     pub(crate) fn append_transaction(
         &mut self,
         record: TransactionRecord,
@@ -236,6 +373,7 @@ impl EventHistoryStore {
         Ok(cursor)
     }
 
+    #[cfg(test)]
     pub(crate) fn append_event(&mut self, record: EventRecord) -> Result<StoreCursor, ModelError> {
         let id = record.id();
         if self.events.contains_key(&id) {
@@ -254,6 +392,7 @@ impl EventHistoryStore {
         Ok(cursor)
     }
 
+    #[cfg(test)]
     fn reserve_cursor(&mut self) -> Result<StoreCursor, ModelError> {
         let cursor = self.next_cursor;
         let Some(next) = cursor.next() else {

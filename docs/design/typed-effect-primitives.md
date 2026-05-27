@@ -13,6 +13,7 @@ Current design draft.
 ## Related Design Owners
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
 
 ## Purpose
@@ -27,10 +28,12 @@ typed effect program over engine-owned primitives.
 ActionDef = roles + requirements + checks + Typed Effect Program
 ```
 
-Typed effect primitives are a reusable mechanism. Game-system packs may define
-new `ActionDef`, `ActionSchema`, process, spell, combat, crafting, or magic
-vocabularies, but their hard outcomes still lower into checked primitive
-effects and runtime-owned commit paths.
+Typed effect primitives are the checked hard-mutation call surface. The
+runtime owns staging and commit authority. The standard world library owns
+common reusable primitive definitions and trusted semantics. Game-system packs
+may define new `ActionDef`, `ActionSchema`, process, spell, combat, crafting,
+or magic vocabularies, but their hard outcomes still lower into checked
+primitive effects and runtime-owned commit paths.
 
 In the [Simulation Transition Compiler](simulation-transition-compiler.md)
 model, a `Typed Effect Program` is the low-level mutation IR that is verified
@@ -60,6 +63,25 @@ Typed effect primitives do not own:
 - social meaning
 - memory, belief, rumor, or secret creation
 - UI text
+
+Typed effect primitives are not one monolithic implementation location. The
+definition model, runtime registry, and standard semantics have separate
+owners:
+
+```text
+EffectPrimitiveDef:
+  checked primitive signature and contract
+
+PrimitiveSemanticsRegistry:
+  runtime-owned lookup and capability-gated dispatch
+
+standard world library:
+  reusable primitive definitions and trusted semantics for common RPG-world
+  mechanics
+```
+
+Ordinary pack-authored effect programs call installed primitives. They do not
+receive raw staging contexts or direct store mutation authority.
 
 ## Core Flow
 
@@ -363,6 +385,9 @@ story-specific lockpick resolver.
 
 - [Physical Simulation Grammar](physical-simulation-grammar.md) defines the
   hard substrate the effects mutate.
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
+  defines how reusable primitive definitions and trusted runtime semantics are
+  supplied outside the runtime core.
 - [Causal Runtime](causal-runtime.md) executes and commits typed effect
   programs.
 - [Capability, Affordance, And Actor Interface](capability-affordance-and-actor-interface.md)
@@ -374,7 +399,8 @@ story-specific lockpick resolver.
 
 - `ActionRequest` remains the attempted-change interface.
 - Actions lower into `Typed Effect Program`s.
-- Primitive mutation semantics are engine-owned.
+- Primitive mutation semantics are trusted engine/library semantics, not
+  ordinary pack callbacks.
 - Every important hard mutation must have a structured `EventRecord` contract.
 - Semantic effects are forbidden in hard typed effect programs.
 - Pack-authored actions and processes must use checked typed effects rather
@@ -385,6 +411,7 @@ story-specific lockpick resolver.
 - exact first primitive set
 - exact type system for effect inputs
 - effect checker design
+- exact primitive semantics registry API
 - `EventRecord` schema versioning
 - how many derived views are allowed in hard validation
 - whether process effects are a separate sublanguage

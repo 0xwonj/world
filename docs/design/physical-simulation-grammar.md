@@ -13,6 +13,7 @@ Current design draft.
 ## Related Design Owners
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
 
 ## Purpose
@@ -336,6 +337,11 @@ set_mechanism_state(portcullis_chain, jammed)
 
 The physical grammar defines what can be changed. Typed effects define checked
 ways to change it.
+
+The standard world library is the implementation boundary for reusable
+physical primitive definitions and trusted semantics. The causal runtime should
+not grow this grammar directly inside the runtime core, and game-system packs
+should not replace these primitives with arbitrary store mutation callbacks.
 
 ## Relationship To Capability
 

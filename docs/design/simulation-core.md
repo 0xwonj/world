@@ -19,6 +19,7 @@ Current design map:
 - [World Model](world-model.md)
 - [Physical Simulation Grammar](physical-simulation-grammar.md)
 - [Typed Effect Primitives](typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Causal Runtime](causal-runtime.md)
 - [Action And Event Model](action-event-model.md) terminology sketch
 - [Time Model](time-model.md)
@@ -106,6 +107,11 @@ Physical Simulation Grammar:
 Typed Effect Primitives:
   checked primitive effect vocabulary, mutation contracts, mandatory
   EventRecord contracts, forbidden semantic effects
+
+Standard World Library:
+  reusable RPG-world grammar, standard primitive definitions, trusted
+  primitive semantics, and the boundary between runtime mechanism and
+  pack-owned gameplay vocabulary
 
 Causal Runtime:
   ActionRequest lifecycle, Typed Effect Program execution, CausalTransaction,

@@ -377,6 +377,8 @@ separate.
 - [World Model](world-model.md) defines the typed storage and query surfaces.
 - [Typed Effect Primitives](typed-effect-primitives.md) defines allowed hard
   mutation primitives.
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
+  defines where reusable primitive definitions and trusted semantics live.
 - [Causal Runtime](causal-runtime.md) defines staging, commit, `EventRecord`
   append, replay, process, reservation, and reaction.
 - [Epistemic State](epistemic-state.md) defines holder-relative actor truth.
@@ -397,8 +399,8 @@ separate.
 - AI may propose but not directly commit hard truth.
 - AI co-authority over soft truth or actor truth is mode-gated and
   provenance-backed.
-- PL/tooling expresses and checks behavior; it does not replace engine-owned
-  primitive semantics.
+- PL/tooling expresses and checks behavior; it does not replace trusted
+  primitive semantics with arbitrary mutation code.
 - [World Model](world-model.md) hosts store families and query surfaces, while
   each domain document owns record meaning and lifecycle.
 - Non-hard gameplay records have explicit commit surfaces:

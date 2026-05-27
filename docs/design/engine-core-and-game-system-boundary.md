@@ -15,6 +15,7 @@ plugin API, package format, or content roadmap.
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
 - [Truth, Authority, And Layer Boundaries](truth-authority-and-layer-boundaries.md)
 - [Typed Effect Primitives](typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Causal Runtime](causal-runtime.md)
 - [Physical Simulation Grammar](physical-simulation-grammar.md)
 - [Capability, Affordance, And Actor Interface](capability-affordance-and-actor-interface.md)
@@ -100,6 +101,11 @@ It includes:
   and jurisdiction
 - multi-resolution execution rules, promotion, demotion, route progress, and
   abstract process constraints
+
+This layer is not the causal runtime core. The runtime owns transaction
+authority, staging, commit, replay, and process-control gates. The standard
+world library owns reusable primitive definitions and trusted primitive
+semantics installed into the runtime.
 
 The library may define reusable categories, but concrete taxonomies remain
 pack-owned when different games reasonably need different vocabularies.
@@ -231,6 +237,8 @@ generic runtime abstraction, and hard effects are interpreted transactionally.
 Good PL uses:
 
 - checking that an authored effect program only performs permitted effects
+- checking that primitive invocations match installed standard or trusted
+  extension definitions
 - validating content schemas and typed references
 - checking that required `EventRecord` contracts are emitted
 - typing query inputs for semantic, social, and intent rules
@@ -245,6 +253,7 @@ Good PL uses:
 Bad PL uses:
 
 - replacing engine-owned primitive semantics with arbitrary script mutation
+- treating ordinary pack source as trusted primitive semantics
 - treating natural language as authoritative state when gameplay depends on it
 - letting content packs mutate hard truth without `CausalTransaction`
 - letting semantic rules write memory, social truth, or intent directly
@@ -438,6 +447,9 @@ and how consequences are balanced.
   actor-relative, causally inspectable RPG and sandbox worlds.
 - Core owns mechanism; packs own vocabulary; specific games own content,
   balance, and premise.
+- The reusable world-simulation library is a real layer between runtime core
+  and game-system packs. It supplies standard primitive definitions and trusted
+  semantics without owning causal commit authority.
 - Named RPG systems such as stats, combat, magic, crafting, building, economy,
   social vocabularies, appraisal rules, and intent templates should be authored
   as pack-level definitions unless their mechanism belongs in core.
@@ -452,7 +464,6 @@ and how consequences are balanced.
 - pack manifest and dependency model
 - pack ordering, override, and conflict-resolution policy
 - versioning and migration policy for pack declarations
-- which reusable world-simulation categories become bundled standard-library
-  packs versus engine library primitives
+- exact first bundled standard primitive set and exact taxonomy boundaries
 - how much modding/user-authored content should be supported by the same
   discipline

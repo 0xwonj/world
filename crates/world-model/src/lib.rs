@@ -1,5 +1,6 @@
 //! Authoritative state storage and query surface crate.
 
+mod commit;
 mod error;
 mod history;
 mod invalidation;
@@ -10,9 +11,13 @@ mod relations;
 mod runtime_control;
 mod store;
 
+pub use commit::{
+    AcceptedHardCommit, EventCommit, HardCommitApplication, HardStateChange, TransactionCommit,
+};
 pub use error::ModelError;
 pub use history::{
-    EventHistoryStore, EventRecord, StoredEventRecord, StoredTransactionRecord, TransactionRecord,
+    EventHistoryStore, EventRecord, EventRoleBinding, StoredEventRecord, StoredTransactionRecord,
+    TransactionRecord,
 };
 pub use invalidation::{
     DerivedViewDescriptor, DerivedViewInvalidationReport, DerivedViewKey, DerivedViewRegistry,

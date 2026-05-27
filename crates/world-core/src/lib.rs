@@ -6,7 +6,7 @@ mod ids;
 mod ordering;
 mod time;
 
-pub use authority::{AuthorityClass, ReplayLevel};
+pub use authority::{AuthorityClass, CausalSource, ReplayLevel};
 pub use error::InvalidCoreValue;
 pub use ids::{
     ActivityId, ActivityIdIssuer, ActorId, CausalTransactionId, CausalTransactionIdIssuer,

@@ -46,6 +46,7 @@ Primary design inputs:
 - [Causal Runtime](../design/causal-runtime.md)
 - [Time Model](../design/time-model.md)
 - [Typed Effect Primitives](../design/typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](../design/standard-world-library.md)
 - [World Model](../design/world-model.md)
 - [Perception And Observation](../design/perception-and-observation.md)
 - [Capability, Affordance, And Actor Interface](../design/capability-affordance-and-actor-interface.md)
@@ -599,6 +600,7 @@ Runtime handling shape:
 ```text
 Typed Effect Program instance
   -> TypedEffectInterpreter
+  -> PrimitiveSemanticsRegistry lookup
   -> CausalTransactionBuilder
   -> staged reads
   -> staged reservations
@@ -609,12 +611,18 @@ Typed Effect Program instance
   -> staged schedule changes
 ```
 
-`TypedEffectInterpreter` is an internal `CausalRuntime` role. It does not own
-commit and does not receive raw store mutation authority.
+`TypedEffectInterpreter` is an internal `CausalRuntime` role. It owns dispatch
+discipline and staging capability use. It does not own commit and does not
+receive raw store mutation authority.
+
+The runtime owns the primitive semantics registry, but not the growing standard
+world vocabulary. Standard primitive definitions and trusted handlers are
+installed from the standard world library or trusted extension packages.
 
 Effect handling rules:
 
 - effect programs call typed domain effects, not unchecked field writes
+- primitive calls must resolve to installed semantics before execution
 - effects stage mutation through transaction APIs
 - later effects in the same transaction may see earlier staged changes
 - required `EventRecord` contracts are checked before commit

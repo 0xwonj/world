@@ -45,6 +45,7 @@ Primary design inputs:
 - [World Model](../design/world-model.md)
 - [Causal Runtime](../design/causal-runtime.md)
 - [Typed Effect Primitives](../design/typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](../design/standard-world-library.md)
 - [Time Model](../design/time-model.md)
 - [Pack Authoring And Semantic Declarations](../design/pack-authoring-and-semantic-declarations.md)
 - [Simulation Transition Compiler](../design/simulation-transition-compiler.md)
@@ -63,6 +64,8 @@ The plan should lock what is already architecturally stable:
 - materialized stores plus transaction/event history
 - `CausalTransaction` as the hard mutation gate
 - `Typed Effect Program` as checked hard-mutation IR
+- standard world library as the reusable primitive-definition and trusted
+  primitive-semantics layer outside runtime core
 - `RuntimeControlUpdate` as runtime control-state update boundary
 - `Intent` as commitment boundary
 - `Activity` as temporal execution boundary
@@ -82,6 +85,7 @@ The plan should not lock details that are better decided during phase design:
 - exact ECS, graph, Datalog, scripting, or Wasm integration
 - exact diagnostics renderer
 - final gameplay content packs
+- exact first standard primitive bundle and concrete taxonomies
 - first playable scenario
 
 Each implementation phase should begin with a short local design note if the
@@ -228,11 +232,12 @@ Phase 2: Checked Definition Model
 Phase 3: World Model And Query Surfaces
 Phase 4: Causal Mutation Waist
 Phase 5: Runtime Control, Time, And Process
-Phase 6: Actor Context Projection
-Phase 7: Semantic Decision Middle-End
-Phase 8: Authoring And Verification
-Phase 9: Engine Facade And Integration
-Phase 10: Scenario And Adapter Planning
+Phase 6: Standard World Library And Primitive Semantics
+Phase 7: Actor Context Projection
+Phase 8: Semantic Decision Middle-End
+Phase 9: Authoring And Verification
+Phase 10: Engine Facade And Integration
+Phase 11: Scenario And Adapter Planning
 ```
 
 The order matters. Later phases can be implemented with more confidence when
@@ -260,6 +265,8 @@ world-core
 world-defs
 world-model
 world-runtime
+world-standard
+world-standard-runtime
 world-context
 world-decision
 world-authoring
@@ -268,7 +275,7 @@ world-engine
 
 Lock now:
 
-- workspace membership
+- initial workspace membership for foundational crates
 - dependency direction
 - root lint/profile/dependency policy
 - no optional accelerator dependency in foundational crates
@@ -277,6 +284,7 @@ Leave open:
 
 - exact module trees
 - exact APIs
+- later boundary crates when a later phase makes a new stable layer explicit
 - exact CI matrix
 - exact test-support crate
 
@@ -336,6 +344,7 @@ execution.
 Primary focus:
 
 - definition ids and registry shape
+- `EffectPrimitiveDef`
 - `ActionDef`
 - `ProcessDef`
 - `Typed Effect Program` definition model
@@ -353,6 +362,7 @@ Lock now:
 - checked definitions are separate from source syntax
 - runtime consumes normalized definitions
 - authoring produces definitions, not callbacks with hidden authority
+- primitive signatures are checked data, separate from runtime semantics
 
 Leave open:
 
@@ -360,6 +370,7 @@ Leave open:
 - parser choice
 - full verifier implementation
 - exact effect operation set
+- exact standard primitive bundle
 - exact semantic declaration format
 
 Exit condition:
@@ -479,10 +490,13 @@ Lock now:
   invariant checks, and committed package construction; `world-model` only
   provides the storage and narrow application surface needed by accepted
   commits
+- model-side apply surfaces are accepted-package receivers only; they do not
+  construct, validate, or partially publish causal commits
 
 Leave open:
 
 - complete effect vocabulary
+- standard world library crate split and complete primitive semantics registry
 - full validation rule set
 - exact transaction builder API
 - storage optimization
@@ -491,7 +505,7 @@ Leave open:
 Exit condition:
 
 There is one visible hard-mutation waist, and callers cannot commit hard world
-changes by directly mutating stores.
+changes by directly mutating stores or bypassing the accepted-package receiver.
 
 ## Phase 5: Runtime Control, Time, And Process
 
@@ -530,6 +544,10 @@ Lock now:
 - Phase 5 uses the Phase 3 `RuntimeControlStore` as storage, but owns
   `RuntimeControlUpdate` validation, accepted update construction, scheduler
   semantics, and process lifecycle rules
+- runtime control keeps its two commit lanes visible: transaction-coupled
+  `RuntimeControlUpdate` for control changes that must be atomic with a hard
+  outcome, and control-only `AcceptedRuntimeControlUpdate` for durable control
+  changes that do not themselves mutate hard truth
 
 Leave open:
 
@@ -545,7 +563,71 @@ The runtime can represent long-running work, schedule wakeups, update runtime
 control state through gates, and explain why process work continued, paused,
 failed, or completed.
 
-## Phase 6: Actor Context Projection
+## Phase 6: Standard World Library And Primitive Semantics
+
+Goal:
+
+Move reusable world-simulation primitive vocabulary out of the runtime core and
+make primitive definitions and trusted semantics explicit before actor context
+depends on standard physical grammar.
+
+Primary focus:
+
+- `EffectPrimitiveDef` completion where Phase 2 left room
+- `EffectOp` references to checked primitive definitions rather than only raw
+  operation names
+- `PrimitiveSemanticsRegistry`
+- standard primitive definition bundle
+- standard primitive semantics installer
+- runtime bootstrap wiring for definitions and semantics
+- definition/semantics compatibility checks
+- migration of Phase 4 seed primitive handling into the registry shape
+
+Crate focus:
+
+```text
+world-defs
+world-runtime
+world-standard
+world-standard-runtime
+world-engine as wiring only if needed
+```
+
+If `world-standard` or `world-standard-runtime` were not created during the
+workspace foundation pass, introduce them here with narrow empty surfaces before
+moving semantics out of `world-runtime`.
+
+Lock now:
+
+- runtime owns semantics lookup, staging capabilities, and causal authority
+- the standard world library owns reusable primitive definitions and trusted
+  primitive semantics outside the runtime core
+- `world-runtime` does not depend on `world-standard` or
+  `world-standard-runtime`
+- ordinary game-system packs compose installed primitives rather than
+  receiving raw staging callbacks
+- missing primitive semantics fails load or execution clearly instead of
+  falling back to generic field mutation
+- actor-context code may depend on pure standard vocabulary, but not on
+  runtime semantics installers
+
+Leave open:
+
+- final standard primitive set
+- final damage, wound, condition, material, resource, signal, and field
+  taxonomies
+- trusted extension package loading/signing policy
+- Wasm, scripting, or sandboxed primitive semantics
+- final pack manifest and dependency-resolution policy
+
+Exit condition:
+
+The engine can distinguish runtime mechanism from standard world semantics:
+checked effect programs call installed primitive definitions, runtime dispatch
+uses trusted semantics through staging capabilities, and reusable standard
+primitive behavior no longer needs to grow inside the runtime core.
+
+## Phase 7: Actor Context Projection
 
 Goal:
 
@@ -589,7 +671,7 @@ Exit condition:
 Decision code can receive actor-visible context without privileged world-store
 access or direct mutation authority.
 
-## Phase 7: Semantic Decision Middle-End
+## Phase 8: Semantic Decision Middle-End
 
 Goal:
 
@@ -634,7 +716,7 @@ Exit condition:
 The engine can produce explainable decision intermediates and selected or
 suggested intents without giving decision code hard mutation authority.
 
-## Phase 8: Authoring And Verification
+## Phase 9: Authoring And Verification
 
 Goal:
 
@@ -677,7 +759,7 @@ Exit condition:
 Definitions can be constructed and checked through an authoring path without
 leaking parser or source-diagnostic dependencies into runtime authority crates.
 
-## Phase 9: Engine Facade And Integration
+## Phase 10: Engine Facade And Integration
 
 Goal:
 
@@ -721,7 +803,7 @@ An application or later tool can create a session, load checked definitions,
 hold world state, submit inputs, drain runtime work, inspect outcomes, and save
 or explain state through stable high-level surfaces.
 
-## Phase 10: Scenario And Adapter Planning
+## Phase 11: Scenario And Adapter Planning
 
 Goal:
 
@@ -772,6 +854,8 @@ This high-level plan has served its purpose when:
   state are represented as distinct authority classes
 - checked definitions are consumed by runtime without depending on parser
   internals
+- standard world primitive definitions and trusted semantics stay outside the
+  runtime core while executing only through runtime staging capabilities
 - actor context and semantic decision code cannot bypass runtime authority
 - long-running and abstract work use `ProcessInstance` and `ProcessTick`
   rather than hidden concrete action spam
@@ -788,6 +872,7 @@ These topics should not be solved by this document:
 - exact ECS, graph, Datalog, scripting, or Wasm adapter
 - first playable scenario
 - game-system standard library packs
+- final standard world taxonomies beyond the first reusable primitive surface
 - UI/editor/client architecture
 - multiplayer/network authority
 - production performance budget
@@ -804,6 +889,7 @@ workspace
   -> world model and query surfaces
   -> causal mutation waist
   -> runtime control, time, and process
+  -> standard world library and primitive semantics
   -> actor context
   -> semantic decision middle-end
   -> authoring and verification

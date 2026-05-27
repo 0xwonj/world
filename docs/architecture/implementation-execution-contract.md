@@ -48,6 +48,8 @@ Primary design inputs:
   permissions.
 - [Typed Effect Primitives](../design/typed-effect-primitives.md): effect
   vocabulary and mutation authority.
+- [Standard World Library And Primitive Semantics](../design/standard-world-library.md):
+  reusable primitive definitions and trusted semantics outside runtime core.
 - [Time Model](../design/time-model.md): simulation time and scheduler
   semantics.
 - [Simulation Transition Compiler](../design/simulation-transition-compiler.md):
@@ -89,6 +91,8 @@ These boundaries must be preserved in code, not only in documentation.
   spam.
 - Decision, appraisal, planning, and semantic context code must not gain hard
   mutation authority.
+- Standard primitive semantics must execute through runtime staging
+  capabilities, not direct store mutation.
 - Query APIs must be read-only.
 - Actor-relative APIs must not leak privileged hard truth while labeling it as
   actor truth.
@@ -300,11 +304,26 @@ Complete only when:
 - reservations, interruption, resume, completion, and failure state are
   represented minimally but concretely.
 
+### Phase 6: Standard World Library And Primitive Semantics
+
+Complete only when:
+
+- primitive definitions and primitive semantics are visibly distinct;
+- `world-runtime` owns registry lookup and staging capabilities without
+  depending on standard primitive vocabulary;
+- standard primitive definitions and trusted semantics are installed from the
+  standard world library layer or a trusted extension;
+- ordinary packs compose installed primitives rather than receiving raw staging
+  callbacks;
+- missing primitive semantics fails clearly at load or execution time;
+- actor-context code can consume pure standard vocabulary without depending on
+  runtime semantics installers.
+
 ## Required Tests
 
 Add targeted tests where the corresponding behavior exists.
 
-At minimum, the Phase 1-5 implementation should include coverage for:
+At minimum, the Phase 1-6 implementation should include coverage for:
 
 - core value constructors and ordering where invariants exist;
 - checked definition construction and rejected inconsistent definitions;
@@ -316,6 +335,8 @@ At minimum, the Phase 1-5 implementation should include coverage for:
 - runtime-control update validation;
 - scheduler wakeup handling on success and recoverable failure;
 - process progress, pause, failure, and completion behavior;
+- primitive definition/semantics registry mismatch behavior once the standard
+  library layer exists;
 - API privacy or compile-time unforgeability where feasible.
 
 Tests should protect boundaries and behavior. Avoid tests that merely assert

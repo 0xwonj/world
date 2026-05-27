@@ -16,6 +16,7 @@ Current design draft
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
 - [Truth, Authority, And Layer Boundaries](truth-authority-and-layer-boundaries.md)
 - [Typed Effect Primitives](typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Physical Simulation Grammar](physical-simulation-grammar.md)
 - [World Model](world-model.md)
 - [Time Model](time-model.md)
@@ -203,6 +204,9 @@ Rules:
   `set_lock_state`.
 - Avoid unchecked `SetField`.
 - Effect permissions enforce layer boundaries.
+- Primitive semantics are looked up through runtime-owned registry and staging
+  capabilities. The causal runtime owns dispatch and authority; the standard
+  world library or trusted extension packages own reusable primitive behavior.
 
 ### CausalTransaction
 
@@ -661,14 +665,17 @@ transaction invariants, commits successful transactions, and appends
 `EventRecord`s.
 
 [Typed Effect Primitives](typed-effect-primitives.md) defines the primitive
-effect vocabulary and `EventRecord` contract expectations. The causal runtime
-defines execution, failure, replay, process, reservation, and reaction
-semantics.
+effect contract shape and `EventRecord` expectations. The
+[Standard World Library And Primitive Semantics](standard-world-library.md)
+document defines how common reusable primitive definitions and trusted
+semantics are supplied outside the runtime core. The causal runtime defines
+registry dispatch, staging capability, failure, replay, process, reservation,
+reaction, and commit semantics.
 
 ## Current Open Questions
 
 - Which primitive effects from [Typed Effect Primitives](typed-effect-primitives.md)
-  are mandatory in the minimal design surface?
+  should be included in the first standard world library surface?
 - Which `EventRecord` contracts must the runtime enforce versus lint?
 - Which failed validations produce public `EventRecord`s?
 - What is the minimum useful invariant set for transaction commit?

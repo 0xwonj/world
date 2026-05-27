@@ -3,7 +3,6 @@ use std::num::NonZeroU64;
 
 use world_core::{AuthorityClass, CausalTransactionId, InvalidCoreValue, QueryEpoch};
 
-#[cfg(test)]
 use crate::ModelError;
 use crate::{AuthorityRead, StoreFamily};
 
@@ -76,9 +75,19 @@ impl InvalidationPackage {
         self.changed_authority_classes.iter().copied()
     }
 
+    /// Returns whether this package marks an authority class as changed.
+    pub fn contains_authority_class(&self, authority: AuthorityClass) -> bool {
+        self.changed_authority_classes.contains(&authority)
+    }
+
     /// Iterates changed store families.
     pub fn changed_store_families(&self) -> impl Iterator<Item = StoreFamily> + '_ {
         self.changed_store_families.iter().copied()
+    }
+
+    /// Returns whether this package marks a store family as changed.
+    pub fn contains_store_family(&self, family: StoreFamily) -> bool {
+        self.changed_store_families.contains(&family)
     }
 
     /// Iterates directly affected derived views.
@@ -87,9 +96,9 @@ impl InvalidationPackage {
     }
 }
 
-#[cfg(test)]
 impl InvalidationPackage {
-    pub(crate) fn new(source: InvalidationSource) -> Self {
+    /// Creates an empty invalidation package for an accepted authority update.
+    pub fn new(source: InvalidationSource) -> Self {
         Self {
             source,
             changed_authority_classes: BTreeSet::new(),
@@ -98,22 +107,25 @@ impl InvalidationPackage {
         }
     }
 
-    pub(crate) fn mark_authority_class(&mut self, authority: AuthorityClass) -> &mut Self {
+    /// Marks an authority class as changed.
+    pub fn mark_authority_class(&mut self, authority: AuthorityClass) -> &mut Self {
         self.changed_authority_classes.insert(authority);
         self
     }
 
-    pub(crate) fn mark_store_family(&mut self, family: StoreFamily) -> &mut Self {
+    /// Marks a store family as changed.
+    pub fn mark_store_family(&mut self, family: StoreFamily) -> &mut Self {
         self.changed_store_families.insert(family);
         self
     }
 
-    pub(crate) fn mark_derived_view(&mut self, key: DerivedViewKey) -> &mut Self {
+    /// Marks a derived view as directly affected.
+    pub fn mark_derived_view(&mut self, key: DerivedViewKey) -> &mut Self {
         self.affected_views.insert(key);
         self
     }
 
-    fn touches_read(&self, read: AuthorityRead) -> bool {
+    pub(crate) fn touches_read(&self, read: AuthorityRead) -> bool {
         self.changed_authority_classes
             .contains(&read.authority_class())
             || self.changed_store_families.contains(&read.store_family())
@@ -177,7 +189,9 @@ impl DerivedViewDescriptor {
             status: DerivedViewStatus::Valid,
         })
     }
+}
 
+impl DerivedViewDescriptor {
     pub(crate) fn set_status(&mut self, status: DerivedViewStatus) {
         self.status = status;
     }
@@ -202,13 +216,31 @@ impl DerivedViewInvalidationReport {
     }
 }
 
-#[cfg(test)]
 impl DerivedViewInvalidationReport {
     fn new(touched_views: usize, epoch: QueryEpoch) -> Self {
         Self {
             touched_views,
             epoch,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DerivedViewInvalidationPlan {
+    touched_views: usize,
+    epoch: QueryEpoch,
+}
+
+impl DerivedViewInvalidationPlan {
+    fn new(touched_views: usize, epoch: QueryEpoch) -> Self {
+        Self {
+            touched_views,
+            epoch,
+        }
+    }
+
+    fn report(self) -> DerivedViewInvalidationReport {
+        DerivedViewInvalidationReport::new(self.touched_views, self.epoch)
     }
 }
 
@@ -246,8 +278,8 @@ impl DerivedViewRegistry {
     }
 }
 
-#[cfg(test)]
 impl DerivedViewRegistry {
+    #[cfg(test)]
     pub(crate) fn register(&mut self, descriptor: DerivedViewDescriptor) -> Result<(), ModelError> {
         let key = descriptor.key();
         if self.views.contains_key(&key) {
@@ -258,25 +290,35 @@ impl DerivedViewRegistry {
         Ok(())
     }
 
-    pub(crate) fn apply_invalidation(
+    pub(crate) fn plan_invalidation(
+        &self,
+        package: &InvalidationPackage,
+    ) -> Result<DerivedViewInvalidationPlan, ModelError> {
+        let touched = self
+            .views
+            .iter()
+            .filter(|(key, view)| {
+                planned_status(package, key, view).is_some_and(|status| view.status() != status)
+            })
+            .count();
+
+        let epoch = if touched > 0 {
+            self.epoch.next().ok_or(ModelError::QueryEpochExhausted)?
+        } else {
+            self.epoch
+        };
+
+        Ok(DerivedViewInvalidationPlan::new(touched, epoch))
+    }
+
+    pub(crate) fn apply_planned_invalidation(
         &mut self,
         package: &InvalidationPackage,
-    ) -> Result<DerivedViewInvalidationReport, ModelError> {
+        plan: DerivedViewInvalidationPlan,
+    ) -> DerivedViewInvalidationReport {
         let mut touched = 0;
-
         for (key, view) in &mut self.views {
-            let direct = package.affected_views.contains(key);
-            let dependency = view.reads.iter().any(|read| package.touches_read(*read));
-
-            let next_status = if direct {
-                Some(DerivedViewStatus::NeedsRebuild)
-            } else if dependency {
-                Some(DerivedViewStatus::Stale)
-            } else {
-                None
-            };
-
-            if let Some(status) = next_status
+            if let Some(status) = planned_status(package, key, view)
                 && view.status() != status
             {
                 view.set_status(status);
@@ -284,13 +326,35 @@ impl DerivedViewRegistry {
             }
         }
 
-        if touched > 0 {
-            let Some(next) = self.epoch.next() else {
-                return Err(ModelError::QueryEpochExhausted);
-            };
-            self.epoch = next;
-        }
+        debug_assert_eq!(touched, plan.touched_views);
+        self.epoch = plan.epoch;
 
-        Ok(DerivedViewInvalidationReport::new(touched, self.epoch))
+        plan.report()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_invalidation(
+        &mut self,
+        package: &InvalidationPackage,
+    ) -> Result<DerivedViewInvalidationReport, ModelError> {
+        let plan = self.plan_invalidation(package)?;
+        Ok(self.apply_planned_invalidation(package, plan))
+    }
+}
+
+fn planned_status(
+    package: &InvalidationPackage,
+    key: &DerivedViewKey,
+    view: &DerivedViewDescriptor,
+) -> Option<DerivedViewStatus> {
+    let direct = package.affected_views.contains(key);
+    let dependency = view.reads.iter().any(|read| package.touches_read(*read));
+
+    if direct {
+        Some(DerivedViewStatus::NeedsRebuild)
+    } else if dependency {
+        Some(DerivedViewStatus::Stale)
+    } else {
+        None
     }
 }

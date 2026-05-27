@@ -168,7 +168,6 @@ impl EntitySnapshot {
     }
 }
 
-#[cfg(test)]
 impl EntitySnapshot {
     pub(crate) const fn new(
         entity: EntityId,
@@ -216,8 +215,12 @@ impl WorldStore {
     }
 }
 
-#[cfg(test)]
 impl WorldStore {
+    pub(crate) fn insert_planned(&mut self, snapshot: EntitySnapshot) {
+        self.entities.insert(snapshot.entity(), snapshot);
+    }
+
+    #[cfg(test)]
     pub(crate) fn insert(&mut self, snapshot: EntitySnapshot) -> Result<(), ModelError> {
         let entity = snapshot.entity();
         if self.entities.contains_key(&entity) {

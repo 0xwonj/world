@@ -120,7 +120,6 @@ impl RelationRecord {
     }
 }
 
-#[cfg(test)]
 impl RelationRecord {
     pub(crate) const fn new(
         subject: EntityId,
@@ -176,8 +175,12 @@ impl RelationStore {
     }
 }
 
-#[cfg(test)]
 impl RelationStore {
+    pub(crate) fn insert_planned(&mut self, record: RelationRecord) {
+        self.relations.insert(record.key(), record);
+    }
+
+    #[cfg(test)]
     pub(crate) fn insert(&mut self, record: RelationRecord) -> Result<(), ModelError> {
         let key = record.key();
         if self.relations.contains_key(&key) {

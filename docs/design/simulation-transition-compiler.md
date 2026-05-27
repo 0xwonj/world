@@ -20,6 +20,7 @@ design model for organizing staged simulation transitions.
 - [World Model](world-model.md)
 - [Causal Runtime](causal-runtime.md)
 - [Typed Effect Primitives](typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Capability, Affordance, And Actor Interface](capability-affordance-and-actor-interface.md)
 - [Semantic Appraisal And Motivation](semantic-appraisal-and-motivation.md)
 - [Intent Templates And Planning](intent-templates-and-planning.md)
@@ -161,6 +162,7 @@ Outputs:
 DefinitionRegistry
 SymbolTable
 EffectSignatureSet
+PrimitiveSemanticsRequirementSet
 RuleIndex
 QueryDefinitionIndex
 EventRecordContractIndex
@@ -174,6 +176,8 @@ Checks:
 - declared types and roles match
 - stage permissions are legal
 - hard effects only use allowed primitive effects
+- primitive semantics required by the loaded definitions are installed by the
+  standard world library or a trusted extension
 - required `EventRecord` contracts are declared
 - semantic rules do not mutate hard truth
 - appraisal rules do not write memory, social truth, or final intent directly
@@ -883,6 +887,8 @@ Dialect boundaries match the engine/game-pack boundary:
 
 ```text
 core owns mechanism;
+standard world library supplies reusable primitive definitions and trusted
+semantics;
 packs define vocabulary inside checked dialects;
 game content instantiates pack vocabularies.
 ```

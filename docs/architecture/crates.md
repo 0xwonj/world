@@ -66,6 +66,7 @@ domain vocabulary
   -> checked definitions
   -> authoritative state and queries
   -> runtime mutation authority
+  -> reusable standard-world definitions and primitive semantics adapters
   -> actor-relative context
   -> semantic decision work
   -> host orchestration
@@ -99,6 +100,8 @@ crates/
   world-defs/
   world-model/
   world-runtime/
+  world-standard/
+  world-standard-runtime/
   world-context/
   world-decision/
   world-authoring/
@@ -127,10 +130,28 @@ world-core
   <- world-defs
   <- world-model
   <- world-runtime
-  <- world-context
-  <- world-decision
-  <- world-authoring
+  <- world-standard-runtime
   <- world-engine
+
+world-standard
+  -> world-core
+  -> world-defs
+
+world-context
+  -> world-core
+  -> world-defs
+  -> world-model
+  -> world-standard where standard vocabulary is needed
+
+world-decision
+  -> world-core
+  -> world-defs
+  -> world-context
+
+world-authoring
+  -> world-core
+  -> world-defs
+  -> world-standard when compiling against bundled standard definitions
 ```
 
 Expanded view:
@@ -150,10 +171,22 @@ world-runtime
   -> world-defs
   -> world-model
 
+world-standard
+  -> world-core
+  -> world-defs
+
+world-standard-runtime
+  -> world-core
+  -> world-defs
+  -> world-model
+  -> world-runtime
+  -> world-standard
+
 world-context
   -> world-core
   -> world-defs
   -> world-model
+  -> world-standard
 
 world-decision
   -> world-core
@@ -163,12 +196,15 @@ world-decision
 world-authoring
   -> world-core
   -> world-defs
+  -> world-standard
 
 world-engine
   -> world-core
   -> world-defs
   -> world-model
   -> world-runtime
+  -> world-standard
+  -> world-standard-runtime
   -> world-context
   -> world-decision
   -> world-authoring
@@ -178,23 +214,27 @@ Forbidden dependency edges:
 
 ```text
 world-core -> any world-* crate
-world-defs -> world-model or world-runtime
-world-model -> world-runtime, world-context, or world-decision
-world-runtime -> world-context or world-decision
+world-defs -> world-model, world-runtime, world-standard, or later crates
+world-model -> world-runtime, world-standard, world-standard-runtime, world-context, or world-decision
+world-runtime -> world-standard, world-standard-runtime, world-context, or world-decision
+world-standard -> world-model, world-runtime, world-standard-runtime, world-context, or world-decision
+world-standard-runtime -> world-context or world-decision
 world-context -> world-runtime
 world-decision -> world-runtime
-world-authoring -> world-model or world-runtime
+world-authoring -> world-model, world-runtime, world-standard-runtime, or world-engine
 ```
 
 The most important rule is:
 
 ```text
 world-runtime does not depend on world-decision.
+world-runtime does not depend on world-standard.
 ```
 
 `world-engine` orchestrates the decision and runtime crates. This preserves the
-boundary where appraisal and intent may propose or select, but only runtime
-authority can validate and commit hard outcomes.
+boundary where appraisal and intent may propose or select, the standard world
+library may supply trusted primitive semantics, but only runtime authority can
+validate and commit hard outcomes.
 
 ## Crates
 
@@ -258,6 +298,7 @@ Owns checked engine definition types.
 Likely contents:
 
 - `DefinitionRegistry`
+- `EffectPrimitiveDef`
 - `ActionDef`
 - `ProcessDef`
 - `Typed Effect Program` IR
@@ -310,6 +351,8 @@ Allowed dependencies:
 
 - `world-core`
 - `world-defs`
+- `world-standard` when compiling or verifying against bundled standard
+  definitions
 
 Must not own:
 
@@ -361,6 +404,7 @@ Likely contents:
 - `CausalTransactionBuilder`
 - `CausalTransactionGate`
 - `TypedEffectInterpreter`
+- `PrimitiveSemanticsRegistry`
 - `ActionRequest` lifecycle handling
 - `ProcessTick` lifecycle handling
 - `ReactionRequest` lifecycle handling
@@ -399,6 +443,84 @@ Design notes:
 - no semantic decision crate dependency is allowed
 - ordinary gameplay outcomes are domain results, not infrastructure errors
 
+### `world-standard`
+
+Owns pure reusable standard-world vocabulary and definition bundles.
+
+Likely contents:
+
+- standard physical/topological primitive definitions
+- standard event family definitions
+- standard value categories for material, substance, condition, wound, signal,
+  field, resource, topology, and passive-process hooks
+- helper builders that install standard definitions into definition registries
+- stable ids and version anchors for bundled standard primitives
+
+Allowed dependencies:
+
+- `world-core`
+- `world-defs`
+
+Must not own:
+
+- world stores or model-side apply receivers
+- transaction staging
+- primitive runtime dispatch
+- `CausalTransaction` construction or commit
+- scheduler drain
+- actor decision
+- parser/source syntax
+- host IO or plugin loading
+
+Design notes:
+
+- this crate is the pure reusable world-simulation library surface
+- it may be consumed by actor context, authoring, and engine wiring that need
+  standard vocabulary without pulling in runtime mutation authority
+- model-facing categories should be expressed through `world-defs` contracts
+  so `world-model` does not depend on installed standard vocabulary
+- it should not hide concrete game taxonomies in the engine; genre- or
+  world-specific taxonomies remain pack-owned
+
+### `world-standard-runtime`
+
+Owns trusted runtime semantics installers for standard primitives.
+
+Likely contents:
+
+- standard primitive semantics implementations
+- validation and staging handlers for installed standard primitives
+- registration helpers for `PrimitiveSemanticsRegistry`
+- tests that standard definitions and standard semantics stay in sync
+
+Allowed dependencies:
+
+- `world-core`
+- `world-defs`
+- `world-model`
+- `world-runtime`
+- `world-standard`
+
+Must not own:
+
+- definition source parsing
+- engine session lifecycle
+- actor context projection
+- semantic decision work
+- arbitrary plugin execution
+- direct store mutation outside runtime staging capabilities
+
+Design notes:
+
+- `world-runtime` owns the registry and staging APIs, but does not depend on
+  standard primitives
+- `world-standard-runtime` installs trusted bundled handlers into runtime
+  sessions
+- ordinary game-system packs compose installed primitives; they do not provide
+  raw staging callbacks through this crate
+- if future trusted extension packages add primitive semantics, they should
+  follow the same dependency shape rather than making pack source executable
+
 ### `world-context`
 
 Owns actor-relative context projection and readable decision inputs.
@@ -421,12 +543,14 @@ Allowed dependencies:
 - `world-core`
 - `world-defs`
 - `world-model`
+- `world-standard` when standard physical vocabulary is needed for projection
 
 Must not own:
 
 - final intent selection
 - hard validation
 - transaction staging
+- `world-standard-runtime` or any primitive semantics installer
 - durable memory/social/appraisal writes without accepted update gates
 
 Design notes:
@@ -499,6 +623,7 @@ Must not own:
 
 - live `WorldModel`
 - runtime mutation
+- primitive semantics installation
 - save/load state
 - actor-relative runtime queries
 

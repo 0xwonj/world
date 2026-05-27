@@ -1,11 +1,12 @@
 use std::collections::BTreeSet;
 
 use world_core::{
-    ActivityId, ActivityIdIssuer, ActorId, AuthorityClass, CausalTransactionId,
+    ActivityId, ActivityIdIssuer, ActorId, AuthorityClass, CausalSource, CausalTransactionId,
     CausalTransactionIdIssuer, DefinitionId, EntityId, EventRecordId, EventRecordIdIssuer,
-    ProcessInstanceId, ProcessInstanceIdIssuer, ProvenanceKey, QueryEpoch, ReservationId,
-    ReservationIdIssuer, SimulationTime,
+    ProcessInstanceId, ProcessInstanceIdIssuer, ProvenanceKey, QueryEpoch, ReplayLevel,
+    ReservationId, ReservationIdIssuer, SimulationTime, VersionAnchor,
 };
+use world_defs::{EventKind, EventRecordSpec, RoleName};
 
 use super::*;
 
@@ -33,6 +34,27 @@ fn definition(value: u64) -> DefinitionId {
 fn provenance(value: u64) -> ProvenanceKey {
     let Some(value) = ProvenanceKey::new(value) else {
         panic!("test provenance key must be nonzero");
+    };
+    value
+}
+
+fn version(value: u64) -> VersionAnchor {
+    let Some(value) = VersionAnchor::new(value) else {
+        panic!("test version anchor must be nonzero");
+    };
+    value
+}
+
+fn role_name(value: &'static str) -> RoleName {
+    let Some(value) = RoleName::new(value) else {
+        panic!("test role name must be non-empty");
+    };
+    value
+}
+
+fn event_kind(value: &'static str) -> EventKind {
+    let Some(value) = EventKind::new(value) else {
+        panic!("test event kind must be non-empty");
     };
     value
 }
@@ -113,6 +135,83 @@ fn must_some<T>(value: Option<T>) -> T {
         Some(value) => value,
         None => panic!("expected value to be present"),
     }
+}
+
+fn event_spec() -> EventRecordSpec {
+    let Ok(spec) = EventRecordSpec::new(
+        event_kind("EntityTransferred"),
+        [
+            role_name("actor"),
+            role_name("item"),
+            role_name("destination"),
+        ],
+        version(1),
+    ) else {
+        panic!("test event spec must be valid");
+    };
+    spec
+}
+
+fn event_roles() -> Vec<EventRoleBinding> {
+    vec![
+        EventRoleBinding::new(role_name("actor"), entity(1)),
+        EventRoleBinding::new(role_name("item"), entity(2)),
+        EventRoleBinding::new(role_name("destination"), entity(3)),
+    ]
+}
+
+fn transaction_record(
+    id: CausalTransactionId,
+    occurred_at: SimulationTime,
+    provenance: Option<ProvenanceKey>,
+) -> TransactionRecord {
+    TransactionRecord::new(
+        id,
+        CausalSource::Tooling,
+        definition(100),
+        definition(101),
+        ReplayLevel::EventRebuild,
+        occurred_at,
+        provenance,
+    )
+}
+
+fn transaction_commit(
+    id: CausalTransactionId,
+    occurred_at: SimulationTime,
+    provenance: Option<ProvenanceKey>,
+) -> TransactionCommit {
+    TransactionCommit::new(
+        id,
+        CausalSource::Tooling,
+        definition(100),
+        definition(101),
+        ReplayLevel::EventRebuild,
+        occurred_at,
+        provenance,
+    )
+}
+
+fn event_commit(
+    id: EventRecordId,
+    occurred_at: SimulationTime,
+    provenance: Option<ProvenanceKey>,
+) -> EventCommit {
+    EventCommit::new(id, event_spec(), event_roles(), occurred_at, provenance)
+}
+
+fn hard_invalidation(
+    transaction: CausalTransactionId,
+    stores: impl IntoIterator<Item = StoreFamily>,
+) -> InvalidationPackage {
+    let mut invalidation = InvalidationPackage::new(InvalidationSource::HardCommit(transaction));
+    invalidation
+        .mark_authority_class(AuthorityClass::Hard)
+        .mark_store_family(StoreFamily::EventHistory);
+    for store in stores {
+        invalidation.mark_store_family(store);
+    }
+    invalidation
 }
 
 #[test]
@@ -282,14 +381,15 @@ fn event_history_preserves_order_and_requires_known_transaction() {
         model.append_event(EventRecord::new(
             event_id,
             tx,
-            definition(5),
+            event_spec(),
+            event_roles(),
             SimulationTime::from_ticks(10),
             None,
         )),
         Err(ModelError::MissingTransaction { transaction: tx })
     );
 
-    let tx_cursor = must_ok(model.append_transaction(TransactionRecord::new(
+    let tx_cursor = must_ok(model.append_transaction(transaction_record(
         tx,
         SimulationTime::from_ticks(10),
         Some(provenance(7)),
@@ -297,7 +397,8 @@ fn event_history_preserves_order_and_requires_known_transaction() {
     let event_cursor = must_ok(model.append_event(EventRecord::new(
         event_id,
         tx,
-        definition(5),
+        event_spec(),
+        event_roles(),
         SimulationTime::from_ticks(10),
         None,
     )));
@@ -324,12 +425,181 @@ fn event_history_preserves_order_and_requires_known_transaction() {
         model.append_event(EventRecord::new(
             event_id,
             tx,
-            definition(6),
+            event_spec(),
+            event_roles(),
             SimulationTime::from_ticks(11),
             None,
         )),
         Err(ModelError::DuplicateEvent { event: event_id })
     );
+}
+
+#[test]
+fn accepted_hard_commit_applies_history_state_and_invalidation_together() {
+    let mut model = WorldModel::new();
+    let view = derived_view(10);
+    must_ok(
+        model.register_derived_view(must_ok(DerivedViewDescriptor::new(
+            view,
+            [AuthorityRead::hard_world()],
+        ))),
+    );
+
+    let tx = transaction(10);
+    let invalidation = hard_invalidation(tx, [StoreFamily::World, StoreFamily::Relation]);
+
+    let commit = must_ok(AcceptedHardCommit::new(
+        transaction_commit(tx, SimulationTime::from_ticks(42), Some(provenance(10))),
+        [event_commit(
+            event(10),
+            SimulationTime::from_ticks(42),
+            Some(provenance(11)),
+        )],
+        [
+            HardStateChange::insert_entity(entity(10), None, Some(provenance(12))),
+            HardStateChange::insert_relation(
+                entity(10),
+                RelationFamily::ContainedIn,
+                entity(20),
+                Some(provenance(13)),
+            ),
+        ],
+        invalidation,
+    ));
+
+    let application = must_ok(model.apply_hard_commit(commit));
+
+    assert_eq!(model.event_history().transaction_count(), 1);
+    assert_eq!(model.event_history().event_count(), 1);
+    assert!(model.world_store().contains_entity(entity(10)));
+    assert!(model.relation_store().contains(RelationKey::new(
+        entity(10),
+        RelationFamily::ContainedIn,
+        entity(20),
+    )));
+    assert_eq!(application.event_cursors().len(), 1);
+    assert_eq!(application.invalidation().touched_views(), 1);
+    assert_eq!(
+        must_some(model.derived_view(view)).status(),
+        DerivedViewStatus::Stale
+    );
+}
+
+#[test]
+fn hard_commit_rejects_non_hard_relation_without_mutating_history() {
+    let mut model = WorldModel::new();
+    let tx = transaction(20);
+    let invalidation = InvalidationPackage::new(InvalidationSource::HardCommit(tx));
+    let commit = must_ok(AcceptedHardCommit::new(
+        transaction_commit(tx, SimulationTime::from_ticks(1), None),
+        [event_commit(event(20), SimulationTime::from_ticks(1), None)],
+        [HardStateChange::insert_relation(
+            entity(1),
+            RelationFamily::MemberOf,
+            entity(2),
+            None,
+        )],
+        invalidation,
+    ));
+
+    assert_eq!(
+        model.apply_hard_commit(commit),
+        Err(ModelError::NonHardRelationInHardCommit {
+            subject: entity(1),
+            family: RelationFamily::MemberOf,
+            object: entity(2),
+        })
+    );
+    assert!(model.event_history().is_empty());
+    assert!(model.relation_store().is_empty());
+}
+
+#[test]
+fn hard_commit_requires_invalidation_for_changed_stores() {
+    let mut model = WorldModel::new();
+    let tx = transaction(25);
+    let mut invalidation = InvalidationPackage::new(InvalidationSource::HardCommit(tx));
+    invalidation
+        .mark_authority_class(AuthorityClass::Hard)
+        .mark_store_family(StoreFamily::EventHistory);
+    let commit = must_ok(AcceptedHardCommit::new(
+        transaction_commit(tx, SimulationTime::from_ticks(1), None),
+        [],
+        [HardStateChange::insert_relation(
+            entity(1),
+            RelationFamily::ContainedIn,
+            entity(2),
+            None,
+        )],
+        invalidation,
+    ));
+
+    assert_eq!(
+        model.apply_hard_commit(commit),
+        Err(ModelError::MissingHardCommitStoreInvalidation {
+            transaction: tx,
+            store: StoreFamily::Relation,
+        })
+    );
+    assert!(model.event_history().is_empty());
+    assert!(model.relation_store().is_empty());
+}
+
+#[test]
+fn hard_commit_preflight_rejects_duplicate_event_ids_without_mutating_history() {
+    let mut model = WorldModel::new();
+    let tx = transaction(26);
+    let duplicate = event(26);
+    let commit = must_ok(AcceptedHardCommit::new(
+        transaction_commit(tx, SimulationTime::from_ticks(1), None),
+        [
+            event_commit(duplicate, SimulationTime::from_ticks(1), None),
+            event_commit(duplicate, SimulationTime::from_ticks(1), None),
+        ],
+        [],
+        hard_invalidation(tx, []),
+    ));
+
+    assert_eq!(
+        model.apply_hard_commit(commit),
+        Err(ModelError::DuplicateEvent { event: duplicate })
+    );
+    assert!(model.event_history().is_empty());
+}
+
+#[test]
+fn hard_commit_application_is_atomic_when_late_storage_checks_fail() {
+    let mut model = WorldModel::new();
+    let relation =
+        HardStateChange::insert_relation(entity(1), RelationFamily::ContainedIn, entity(2), None);
+
+    let first_tx = transaction(30);
+    let first_commit = must_ok(AcceptedHardCommit::new(
+        transaction_commit(first_tx, SimulationTime::from_ticks(1), None),
+        [event_commit(event(30), SimulationTime::from_ticks(1), None)],
+        [relation.clone()],
+        hard_invalidation(first_tx, [StoreFamily::Relation]),
+    ));
+    must_ok(model.apply_hard_commit(first_commit));
+
+    let second_tx = transaction(31);
+    let second_commit = must_ok(AcceptedHardCommit::new(
+        transaction_commit(second_tx, SimulationTime::from_ticks(2), None),
+        [event_commit(event(31), SimulationTime::from_ticks(2), None)],
+        [relation],
+        hard_invalidation(second_tx, [StoreFamily::Relation]),
+    ));
+
+    assert_eq!(
+        model.apply_hard_commit(second_commit),
+        Err(ModelError::DuplicateRelation {
+            subject: entity(1),
+            family: RelationFamily::ContainedIn,
+            object: entity(2),
+        })
+    );
+    assert_eq!(model.event_history().transaction_count(), 1);
+    assert_eq!(model.event_history().event_count(), 1);
 }
 
 #[test]

@@ -116,3 +116,30 @@ Consequence:
 Subsystems may declare stronger replay requirements, but the architecture
 should distinguish audit replay, event rebuild, and deterministic command
 replay instead of treating them as one global property.
+
+## ADR-006: Standard World Library Outside Runtime Core
+
+Decision:
+
+Keep reusable RPG-world primitive definitions and trusted primitive semantics
+in a standard world library layer outside the causal runtime core.
+
+Reason:
+
+The runtime core should own transaction authority, staging capabilities,
+registry dispatch, commit, replay, and runtime-control gates. Common mechanics
+such as containment transfer, damage, wounds, conditions, fields, signals,
+resources, and passive physical process hooks need meaningful reusable
+semantics, but placing all of them directly in the runtime crate would make
+the runtime a hardcoded game system. Pushing them entirely into ordinary packs
+would force packs either to compose overly generic mutations or to gain unsafe
+callback authority.
+
+Consequence:
+
+`world-runtime` owns the primitive semantics registry and staging APIs without
+depending on standard primitive vocabulary. The standard world library supplies
+definition bundles and trusted semantics installers. Ordinary game-system
+packs compose installed primitives through checked `Typed Effect Program`s;
+future primitive extensions are trusted engine extensions, not arbitrary pack
+scripts.

@@ -40,6 +40,7 @@ Primary design inputs:
 - [World Model](../design/world-model.md)
 - [Causal Runtime](../design/causal-runtime.md)
 - [Typed Effect Primitives](../design/typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](../design/standard-world-library.md)
 - [Time Model](../design/time-model.md)
 - [Pack Authoring And Semantic Declarations](../design/pack-authoring-and-semantic-declarations.md)
 - [Simulation Transition Compiler](../design/simulation-transition-compiler.md)
@@ -65,6 +66,9 @@ The engine is a domain-owned simulation runtime with checked authoring inputs.
 PackCompiler / DefinitionRegistry
   supplies checked definitions
 
+StandardWorldLibrary
+  supplies reusable primitive definitions and trusted primitive semantics
+
 WorldModel
   owns authoritative and holder-relative store families
 
@@ -72,7 +76,7 @@ QueryLayer
   exposes typed, permissioned read surfaces
 
 CausalRuntime
-  stages and commits hard world mutation
+  stages and commits hard world mutation through installed primitive semantics
 
 ProcessRuntime / Scheduler
   advances durable time and long-running work
@@ -130,7 +134,7 @@ The component map can be read as six cooperating planes:
 
 ```text
 Authoring:
-  PackCompiler, DefinitionRegistry
+  PackCompiler, DefinitionRegistry, StandardWorldLibrary
 
 State and query:
   WorldModel, QueryLayer, DerivedViewRegistry
@@ -159,6 +163,10 @@ EngineHost
 DefinitionRegistry
   checked pack, action, process, effect, semantic, and content definitions
 
+StandardWorldLibrary
+  reusable RPG-world grammar, standard primitive definitions, and trusted
+  semantics installers
+
 WorldModel
   authority-class stores, relation families, identity, derived-view registry
 
@@ -178,6 +186,10 @@ CausalRuntime
 TypedEffectInterpreter
   internal causal-runtime role for checked effect IR execution over
   transaction staging APIs
+
+PrimitiveSemanticsRegistry
+  runtime-owned lookup table for trusted primitive handlers installed by the
+  standard world library or trusted extensions
 
 EventHistoryStore
   TransactionRecord, EventRecord, audit data, history cursor, version anchors
@@ -222,6 +234,7 @@ Does not own:
 - world truth
 - pack definition semantics
 - typed effect semantics
+- primitive semantics implementations
 - transaction commit rules
 - actor-relative visibility
 
@@ -245,6 +258,7 @@ Owns:
 - checked `ActionDef`
 - checked `ProcessDef`
 - checked `ReactionDef`
+- checked primitive effect definitions
 - checked `Typed Effect Program` definitions
 - checked semantic declaration definitions
 - content schemas and ids
@@ -282,6 +296,33 @@ appraisal_rules_by_focus
 intent_templates_by_pressure_or_goal
 semantic_views_by_input
 ```
+
+## StandardWorldLibrary
+
+Owns reusable world-simulation definition bundles and primitive semantics
+installers.
+
+Owns:
+
+- standard primitive definitions
+- reusable event family definitions
+- reusable physical/topological value categories
+- trusted primitive semantics installers
+- version anchors for bundled standard primitives
+
+Does not own:
+
+- `CausalTransaction` authority
+- primitive dispatch registry ownership
+- pack source parsing
+- actor decision
+- concrete game taxonomies and balance
+
+The standard world library is a layer between runtime mechanism and
+game-system packs. Runtime owns staging, dispatch, commit, and replay. The
+standard library supplies common primitives such as transfer, damage,
+condition, signal, field, and process hooks without making ordinary packs
+executable mutation callbacks.
 
 ## PackCompiler
 
@@ -607,6 +648,7 @@ Owns execution of checked hard-effect IR as an internal role of
 Owns:
 
 - primitive effect dispatch
+- lookup through `PrimitiveSemanticsRegistry`
 - staged reads
 - staged writes
 - required `EventRecord` contract enforcement
@@ -639,6 +681,11 @@ Typed Effect Program
 
 Primitive effects should be domain-specific enough to preserve semantics and
 contracts. The interpreter should not become a generic field mutation engine.
+
+The interpreter owns dispatch discipline, not the whole standard primitive
+vocabulary. Standard primitive semantics are installed from the standard world
+library or trusted extension packages and execute only through staging
+capabilities.
 
 ## EventHistoryStore
 
@@ -1017,6 +1064,7 @@ High-level boot:
 
 ```text
 load engine configuration
+  -> install selected standard definition bundles and primitive semantics
   -> load pack sources or structured definitions
   -> PackCompiler verifies definitions
   -> DefinitionRegistry is built
@@ -1075,12 +1123,14 @@ WorldModel-hosted stores / actor truth stores
 | EngineHost | orchestration and adapters | gameplay truth or hidden rules |
 | PackCompiler | verification and registry construction | live runtime mutation |
 | DefinitionRegistry | checked reusable definitions | current world state |
+| StandardWorldLibrary | reusable primitive definitions and trusted semantics installers | causal commit authority or concrete game content |
 | WorldModel | stores, identity, indexes, query plumbing | arbitrary write authority |
 | QueryLayer | typed read surfaces | durable writes |
 | DerivedViewRegistry | cache dependencies and invalidation | source truth |
 | Scheduler | agenda and wakeups | process local state or mutation semantics |
 | ProcessRuntime | `ProcessInstance` lifecycle | hard mutation outside transactions |
 | CausalRuntime | hard mutation discipline | semantic meaning or final choice |
+| PrimitiveSemanticsRegistry | trusted primitive handler lookup | standard vocabulary ownership |
 | TypedEffectInterpreter | checked effect execution inside causal runtime | commit or raw store mutation |
 | EventHistoryStore | committed causal records | social meaning or actor belief |
 | VersioningPolicy | schema and content version anchors | persistence backend or mutation |
@@ -1109,6 +1159,7 @@ Defer until crate architecture or implementation planning:
 - exact persistence backend
 - migration mechanics and persistence backend details
 - exact diagnostic renderer
+- exact first standard primitive bundle
 - concrete ECS or graph integration
 - concrete scripting or plugin runtime
 - specific game-system standard packs

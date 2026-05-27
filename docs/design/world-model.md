@@ -17,6 +17,7 @@ Current design draft
 - [Truth, Authority, And Layer Boundaries](truth-authority-and-layer-boundaries.md)
 - [Physical Simulation Grammar](physical-simulation-grammar.md)
 - [Typed Effect Primitives](typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Causal Runtime](causal-runtime.md)
 - [Social Institutional Model](social-institutional-model.md)
 - [Multi-Resolution Simulation](multi-resolution-simulation.md)

@@ -15,6 +15,7 @@ manager, editor format, or implementation plan.
 - [Truth, Authority, And Layer Boundaries](truth-authority-and-layer-boundaries.md)
 - [World Model](world-model.md)
 - [Typed Effect Primitives](typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](standard-world-library.md)
 - [Causal Runtime](causal-runtime.md)
 - [Social Institutional Model](social-institutional-model.md)
 - [Semantic Appraisal And Motivation](semantic-appraisal-and-motivation.md)
@@ -623,6 +624,8 @@ Common checks:
 Hard-effect checks:
 
 - `Typed Effect Program` uses only allowed primitive effects
+- primitive calls resolve to installed standard or trusted extension
+  definitions
 - hard mutation is staged through `CausalTransaction`
 - required `EventRecord` contracts are emitted
 - semantic/social/appraisal outputs are not emitted as hard effects
@@ -748,6 +751,9 @@ to checked IR and execute through `ProcessRuntime`, `ProcessTick`, and
 
 - `Typed Effect Program` is a separate hard-mutation IR family with
   replaceable authoring frontends.
+- Ordinary packs compose installed primitives; trusted primitive semantics are
+  supplied by the standard world library or trusted engine extensions, not by
+  arbitrary pack callbacks.
 - Semantic, social, appraisal, and intent declarations share one semantic
   declaration IR framework.
 - The semantic framework has multiple declaration kinds, not one unrestricted
