@@ -24,6 +24,10 @@ fn issued_ids_come_from_monotonic_issuers() {
     let mut tx_ids = CausalTransactionIdIssuer::new();
     let mut process_ids = ProcessInstanceIdIssuer::new();
     let mut activity_ids = ActivityIdIssuer::new();
+    let mut reservation_ids = ReservationIdIssuer::new();
+    let mut wakeup_ids = ScheduledWakeupIdIssuer::new();
+    let mut rng_stream_ids = RngStreamIdIssuer::new();
+    let mut rng_draw_ids = RngDrawIdIssuer::new();
     let mut handles = RuntimeEntityHandleIssuer::new();
 
     assert_eq!(event_ids.issue().map(EventRecordId::get), Some(1));
@@ -31,6 +35,10 @@ fn issued_ids_come_from_monotonic_issuers() {
     assert_eq!(tx_ids.issue().map(CausalTransactionId::get), Some(1));
     assert_eq!(process_ids.issue().map(ProcessInstanceId::get), Some(1));
     assert_eq!(activity_ids.issue().map(ActivityId::get), Some(1));
+    assert_eq!(reservation_ids.issue().map(ReservationId::get), Some(1));
+    assert_eq!(wakeup_ids.issue().map(ScheduledWakeupId::get), Some(1));
+    assert_eq!(rng_stream_ids.issue().map(RngStreamId::get), Some(1));
+    assert_eq!(rng_draw_ids.issue().map(RngDrawId::get), Some(1));
     assert_eq!(handles.issue().map(RuntimeEntityHandle::get), Some(1));
 
     assert_eq!(

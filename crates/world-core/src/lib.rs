@@ -11,8 +11,9 @@ pub use error::InvalidCoreValue;
 pub use ids::{
     ActivityId, ActivityIdIssuer, ActorId, CausalTransactionId, CausalTransactionIdIssuer,
     DefinitionId, EntityId, EventRecordId, EventRecordIdIssuer, ProcessInstanceId,
-    ProcessInstanceIdIssuer, ProvenanceKey, RuntimeEntityHandle, RuntimeEntityHandleIssuer,
-    VersionAnchor,
+    ProcessInstanceIdIssuer, ProvenanceKey, ReservationId, ReservationIdIssuer, RngDrawId,
+    RngDrawIdIssuer, RngStreamId, RngStreamIdIssuer, RuntimeEntityHandle,
+    RuntimeEntityHandleIssuer, ScheduledWakeupId, ScheduledWakeupIdIssuer, VersionAnchor,
 };
 pub use ordering::{QueryEpoch, StoreCursor, WakeupOrderKey};
 pub use time::{SimulationDuration, SimulationTime};

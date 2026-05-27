@@ -343,6 +343,13 @@ WorldModel
 `WorldModel` hosts these store families. Components such as
 `EventHistoryStore` and `RuntimeControlStore` may expose focused APIs, but they
 do not become sibling truth owners that can bypass the relevant commit gate.
+`CausalTransactionGate` denotes the model-adjacent apply boundary; the causal
+runtime owns transaction construction, validation, and accepted hard commit
+authority.
+Before that commit boundary is implemented, `WorldModel` remains a read-first
+substrate: public callers can create a model, inspect read-only stores, and use
+query surfaces, but they cannot construct committed records or apply accepted
+packages through public model APIs.
 
 Owns:
 

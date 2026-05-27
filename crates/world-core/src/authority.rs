@@ -1,6 +1,6 @@
 /// Authority layer for gameplay-relevant state.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AuthorityClass {
     /// Physical and causal truth committed through causal runtime.
     Hard,
@@ -18,7 +18,7 @@ pub enum AuthorityClass {
 
 /// Declared replay strength for committed runtime records.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReplayLevel {
     /// Inspect committed records, ordering, validation context, and provenance.
     AuditOnly,

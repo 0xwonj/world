@@ -112,6 +112,7 @@ dependencies = [
 name = "world-model"
 version = "0.0.0"
 dependencies = [
+ "thiserror",
  "world-core",
  "world-defs",
 ]

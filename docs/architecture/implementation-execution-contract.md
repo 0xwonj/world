@@ -103,8 +103,17 @@ Early Rust code must use visibility to enforce authority.
   allow downstream crates to forge accepted runtime-control updates.
 - If a type has invariants, prefer private fields plus constructors and
   accessors.
-- `world-model` may own storage and atomic application of accepted updates, but
-  it must not expose arbitrary hard mutation packages to general callers.
+- Cross-crate authority cannot rely on friend visibility. If one crate should be
+  the intended producer of a value consumed by another crate, enforce as much as
+  Rust allows with private fields, narrow constructors, and higher-level facade
+  ownership instead of exposing broad public constructors.
+- `world-model` may own storage and later atomic application of accepted
+  updates, but it must not expose arbitrary hard mutation packages to general
+  callers.
+- Until Phase 4/5 accepted package boundaries exist, `world-model` public APIs
+  should be read-first: model creation, read-only stores, read labels, query
+  surfaces, and accessors. Do not fill the gap with public committed,
+  runtime-control, or accepted-record constructors.
 - `world-runtime` may interpret checked definitions and produce accepted
   transaction or runtime-control outputs through narrow APIs.
 - Effect handlers should receive staging capabilities, not raw store mutation
@@ -251,7 +260,15 @@ Complete only when:
 - hard, non-hard, actor-relative, and runtime-control state remain distinct;
 - arbitrary hard mutation is not exposed through model stores;
 - query APIs are read-only;
-- actor-relative query surfaces do not mislabel privileged hard truth.
+- actor-relative query surfaces do not mislabel privileged hard truth;
+- runtime-control storage and read surfaces exist without forcing Phase 5
+  update validation or scheduler semantics forward;
+- invalidation package vocabulary and derived-view staleness states exist
+  without requiring final cache policy;
+- public writes are intentionally absent until accepted package construction is
+  owned by the proper runtime or engine facade;
+- any later model-side apply surface is a narrow receiver for accepted packages,
+  not a public causal transaction authority.
 
 ### Phase 4: Causal Mutation Waist
 

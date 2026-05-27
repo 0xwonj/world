@@ -19,12 +19,6 @@ macro_rules! string_key {
                 }
             }
 
-            /// Creates a key from a static non-empty string.
-            pub fn from_static(value: &'static str) -> Self {
-                assert!(!value.trim().is_empty(), "static keys cannot be empty");
-                Self(value.trim().to_owned())
-            }
-
             /// Returns the normalized key text.
             pub fn as_str(&self) -> &str {
                 &self.0

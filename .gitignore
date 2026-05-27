@@ -10,6 +10,7 @@ Thumbs.db
 # Local scratch
 .env
 .env.*
+.codex/
 tmp/
 scratch/
 

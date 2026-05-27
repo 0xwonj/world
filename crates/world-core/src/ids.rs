@@ -143,6 +143,30 @@ issued_value!(
 );
 
 issued_value!(
+    /// Durable runtime conflict-control reservation identity.
+    ReservationId,
+    ReservationIdIssuer
+);
+
+issued_value!(
+    /// Durable scheduler wakeup identity.
+    ScheduledWakeupId,
+    ScheduledWakeupIdIssuer
+);
+
+issued_value!(
+    /// Durable deterministic random stream identity.
+    RngStreamId,
+    RngStreamIdIssuer
+);
+
+issued_value!(
+    /// Durable deterministic random draw identity.
+    RngDrawId,
+    RngDrawIdIssuer
+);
+
+issued_value!(
     /// Opaque in-memory entity handle, distinct from durable entity identity.
     RuntimeEntityHandle,
     RuntimeEntityHandleIssuer

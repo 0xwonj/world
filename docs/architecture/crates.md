@@ -322,12 +322,20 @@ Must not own:
 Design notes:
 
 - `WorldModel` hosts stores, but does not make every store directly mutable
+- the current public model surface is read-first; external callers can inspect
+  stores and query labels, but cannot write committed hard, runtime-control, or
+  accepted non-hard records directly
 - query APIs return ids, value snapshots, read tokens, or derived views
 - broad `&mut WorldModel` access should stay inside authority gates
 - `EventHistoryStore` is a committed-history facade, not a generated-history
   owner
 - `RuntimeControlStore` stores runtime control state, but updates arrive
   through runtime-control gates or transaction-coupled updates
+- Phase 3 invalidation package types describe changed authority classes,
+  changed store families, directly affected derived views, and view staleness;
+  detailed dependency ranges belong to later dependency modeling
+- model-side apply APIs, when added, are storage receivers, not causal
+  transaction construction or validation authority
 
 ### `world-runtime`
 

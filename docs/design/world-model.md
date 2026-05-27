@@ -84,6 +84,16 @@ the public game API. Fact/relational projections are allowed for queries,
 history, provenance, and semantic context, but a universal untyped fact graph
 is not the hard-truth core.
 
+`CausalTransactionGate` in this shape names the model-adjacent apply boundary
+for accepted hard commits. It does not mean `world-model` owns causal
+transaction construction, effect interpretation, invariant checking, or commit
+authority. Those semantics belong to the causal runtime; the model owns the
+stores and the narrow receiver surface needed to apply accepted changes.
+In the current model-substrate implementation, that receiver surface is not a
+public write API. Accepted hard, runtime-control, social, chronology,
+epistemic, and appraisal package construction remains a later runtime or engine
+facade concern.
+
 ## Authority Store Families
 
 The world model hosts stores. It does not make every store hard truth.
@@ -391,6 +401,9 @@ Rules:
   large memory arrays.
 - Writes require an accepted epistemic commit such as
   `AcceptedEpistemicUpdate`.
+- Actor-relative query surfaces must filter by epistemic holder. A global
+  epistemic count is a debug or semantic-context concern, not actor-relative
+  visibility.
 
 ### AppraisalRecordStore
 
@@ -496,6 +509,9 @@ Rules:
   authority classes were read.
 - Dynamic query languages are acceptable for read-only tooling and debugging,
   not for unchecked authoritative mutation.
+- Implementation can stage query depth. Kernel and debug reads may become
+  functional before full actor-context projection, but actor-relative and
+  semantic query surfaces must still carry actor/scope and authority labels.
 
 ## Mutation Boundary
 
@@ -538,6 +554,15 @@ No world store, relation store, process store, event listener, semantic rule,
 AI proposal, or debug tool should become a hidden mutation path. Non-hard
 commit gates may reference hard `EventRecord`s as provenance, but they must not
 rewrite hard truth or bypass their own authority layer.
+
+The public `world-model` surface is read-first until those commit gates are
+implemented. Public callers can create the model, borrow read-only stores,
+inspect read labels, and use query surfaces. They cannot construct committed
+hard records, accepted non-hard records, runtime-control records, or apply
+packages directly through public model APIs. Rust has no friend-crate
+visibility, so final authority is enforced by private fields, narrow APIs, and
+ownership by higher runtime or engine facades rather than by exposing public
+constructors and trusting convention.
 
 ## Extension Rule
 

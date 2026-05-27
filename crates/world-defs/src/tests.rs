@@ -15,8 +15,54 @@ fn version(value: u64) -> VersionAnchor {
     version
 }
 
+macro_rules! test_key {
+    ($fn_name:ident, $type_name:ident, $message:literal) => {
+        fn $fn_name(value: &'static str) -> $type_name {
+            let Some(value) = $type_name::new(value) else {
+                panic!($message);
+            };
+            value
+        }
+    };
+}
+
+test_key!(
+    definition_name,
+    DefinitionName,
+    "test definition names must be non-empty"
+);
+test_key!(role_name, RoleName, "test role names must be non-empty");
+test_key!(role_type, RoleType, "test role types must be non-empty");
+test_key!(
+    effect_kind,
+    EffectKind,
+    "test effect kinds must be non-empty"
+);
+test_key!(event_kind, EventKind, "test event kinds must be non-empty");
+test_key!(
+    requirement_kind,
+    RequirementKind,
+    "test requirement kinds must be non-empty"
+);
+test_key!(
+    binding_rule_kind,
+    BindingRuleKind,
+    "test binding rule kinds must be non-empty"
+);
+test_key!(policy_key, PolicyKey, "test policy keys must be non-empty");
+test_key!(
+    state_field_name,
+    StateFieldName,
+    "test state field names must be non-empty"
+);
+test_key!(
+    state_value_type,
+    StateValueType,
+    "test state value types must be non-empty"
+);
+
 fn role(name: &'static str) -> RoleDef {
-    RoleDef::new(RoleName::from_static(name), RoleType::from_static("entity"))
+    RoleDef::new(role_name(name), role_type("entity"))
 }
 
 fn event(kind: &'static str, roles: impl IntoIterator<Item = &'static str>) -> EventRecordSpec {
@@ -29,8 +75,8 @@ fn event_with_version(
     version_value: u64,
 ) -> EventRecordSpec {
     let Ok(event) = EventRecordSpec::new(
-        EventKind::from_static(kind),
-        roles.into_iter().map(RoleName::from_static),
+        event_kind(kind),
+        roles.into_iter().map(role_name),
         version(version_value),
     ) else {
         panic!("test events must declare roles");
@@ -40,8 +86,8 @@ fn event_with_version(
 
 fn state_schema() -> ProcessStateSchema {
     let Ok(schema) = ProcessStateSchema::new([ProcessStateField::new(
-        StateFieldName::from_static("progress"),
-        StateValueType::from_static("u32"),
+        state_field_name("progress"),
+        state_value_type("u32"),
     )]) else {
         panic!("test process state schemas must have fields");
     };
@@ -57,11 +103,11 @@ fn empty_state_schema() -> ProcessStateSchema {
 
 fn policies() -> ProcessPolicies {
     ProcessPolicies::new(
-        PolicyKey::from_static("tick"),
-        PolicyKey::from_static("wait"),
-        PolicyKey::from_static("interrupt"),
-        PolicyKey::from_static("resume"),
-        PolicyKey::from_static("failure"),
+        policy_key("tick"),
+        policy_key("wait"),
+        policy_key("interrupt"),
+        policy_key("resume"),
+        policy_key("failure"),
     )
 }
 
@@ -71,8 +117,7 @@ fn support(tier: ResolutionTier, effect_program: DefinitionId) -> ResolutionSupp
         ResolutionTier::Abstract => "abstract_lowering",
         ResolutionTier::Strategic => "strategic_lowering",
     };
-    let Ok(support) = ResolutionSupport::new(tier, PolicyKey::from_static(name), [effect_program])
-    else {
+    let Ok(support) = ResolutionSupport::new(tier, policy_key(name), [effect_program]) else {
         panic!("test resolution support must reference effect programs");
     };
     support
@@ -83,8 +128,7 @@ fn op(
     permissions: impl IntoIterator<Item = StagePermission>,
     emitted_events: impl IntoIterator<Item = EventRecordSpec>,
 ) -> EffectOp {
-    let Ok(operation) = EffectOp::new(EffectKind::from_static(kind), permissions, emitted_events)
-    else {
+    let Ok(operation) = EffectOp::new(effect_kind(kind), permissions, emitted_events) else {
         panic!("test operations declare permissions");
     };
     operation
@@ -93,7 +137,7 @@ fn op(
 fn transfer_program() -> EffectProgramDef {
     let Ok(program) = EffectProgramDef::new(
         id(1),
-        DefinitionName::from_static("transfer"),
+        definition_name("transfer"),
         [op(
             "transfer_entity",
             [
@@ -115,21 +159,15 @@ fn transfer_program() -> EffectProgramDef {
 fn action(effect_program: DefinitionId) -> ActionDef {
     let Ok(action) = ActionDef::new(
         id(2),
-        DefinitionName::from_static("move_item"),
+        definition_name("move_item"),
         [role("actor"), role("item"), role("destination")],
         [RequirementDef::new(
-            RequirementKind::from_static("reachable"),
-            [
-                RoleName::from_static("actor"),
-                RoleName::from_static("item"),
-            ],
+            requirement_kind("reachable"),
+            [role_name("actor"), role_name("item")],
         )],
         [BindingRuleDef::new(
-            BindingRuleKind::from_static("holds"),
-            [
-                RoleName::from_static("actor"),
-                RoleName::from_static("item"),
-            ],
+            binding_rule_kind("holds"),
+            [role_name("actor"), role_name("item")],
         )],
         effect_program,
         EventContract::new([event("EntityTransferred", ["actor", "item", "destination"])]),
@@ -148,7 +186,7 @@ fn action(effect_program: DefinitionId) -> ActionDef {
 fn process(effect_program: DefinitionId) -> ProcessDef {
     let Ok(process) = ProcessDef::new(
         id(3),
-        DefinitionName::from_static("haul_supplies"),
+        definition_name("haul_supplies"),
         [role("actor"), role("item"), role("destination")],
         state_schema(),
         [
@@ -182,7 +220,7 @@ fn string_keys_reject_blank_values() {
 fn action_defs_reject_duplicate_roles_and_unknown_role_refs() {
     let Err(error) = ActionDef::new(
         id(10),
-        DefinitionName::from_static("bad_roles"),
+        definition_name("bad_roles"),
         [role("actor"), role("actor")],
         [],
         [],
@@ -197,17 +235,17 @@ fn action_defs_reject_duplicate_roles_and_unknown_role_refs() {
         error,
         DefinitionError::DuplicateRole {
             definition: id(10),
-            role: RoleName::from_static("actor"),
+            role: role_name("actor"),
         }
     );
 
     let Err(error) = ActionDef::new(
         id(11),
-        DefinitionName::from_static("bad_requirement"),
+        definition_name("bad_requirement"),
         [role("actor")],
         [RequirementDef::new(
-            RequirementKind::from_static("owns"),
-            [RoleName::from_static("item")],
+            requirement_kind("owns"),
+            [role_name("item")],
         )],
         [],
         id(1),
@@ -221,7 +259,7 @@ fn action_defs_reject_duplicate_roles_and_unknown_role_refs() {
         error,
         DefinitionError::UnknownRole {
             definition: id(11),
-            role: RoleName::from_static("item"),
+            role: role_name("item"),
         }
     );
 }
@@ -242,7 +280,7 @@ fn effect_programs_expose_permissions_and_event_contracts() {
 
     let Err(error) = EffectProgramDef::new(
         id(12),
-        DefinitionName::from_static("bad_event_contract"),
+        definition_name("bad_event_contract"),
         [op(
             "validate",
             [StagePermission::ReadWorld],
@@ -263,7 +301,7 @@ fn effect_programs_expose_permissions_and_event_contracts() {
     );
 
     let Err(error) = EffectOp::new(
-        EffectKind::from_static("mutate_without_event"),
+        effect_kind("mutate_without_event"),
         [StagePermission::MutatePhysical],
         std::iter::empty::<EventRecordSpec>(),
     ) else {
@@ -272,12 +310,12 @@ fn effect_programs_expose_permissions_and_event_contracts() {
     assert_eq!(
         error,
         DefinitionError::OperationRequiresEvent {
-            operation: EffectKind::from_static("mutate_without_event"),
+            operation: effect_kind("mutate_without_event"),
         }
     );
 
     let Ok(control_operation) = EffectOp::new(
-        EffectKind::from_static("schedule_without_event"),
+        effect_kind("schedule_without_event"),
         [StagePermission::ScheduleProcess],
         std::iter::empty::<EventRecordSpec>(),
     ) else {
@@ -287,7 +325,7 @@ fn effect_programs_expose_permissions_and_event_contracts() {
     assert!(!control_operation.requires_event());
 
     let Err(error) = EffectOp::new(
-        EffectKind::from_static("read_with_event"),
+        effect_kind("read_with_event"),
         [StagePermission::ReadWorld],
         [event("ReadOnlyEvent", ["actor"])],
     ) else {
@@ -296,13 +334,13 @@ fn effect_programs_expose_permissions_and_event_contracts() {
     assert_eq!(
         error,
         DefinitionError::EventPermissionNotDeclared {
-            operation: EffectKind::from_static("read_with_event"),
+            operation: effect_kind("read_with_event"),
         }
     );
 
     let Err(error) = EffectProgramDef::new(
         id(13),
-        DefinitionName::from_static("uncontracted_event"),
+        definition_name("uncontracted_event"),
         [op(
             "emit_uncontracted",
             [StagePermission::EmitPhysicalEventRecord],
@@ -324,7 +362,7 @@ fn effect_programs_expose_permissions_and_event_contracts() {
 
     let Ok(optional_event_program) = EffectProgramDef::new(
         id(14),
-        DefinitionName::from_static("optional_event"),
+        definition_name("optional_event"),
         [op(
             "emit_optional",
             [StagePermission::EmitSensoryEventRecord],
@@ -345,7 +383,7 @@ fn effect_programs_expose_permissions_and_event_contracts() {
 
     let Err(error) = EffectProgramDef::new(
         id(15),
-        DefinitionName::from_static("wrong_event_shape"),
+        definition_name("wrong_event_shape"),
         [op(
             "emit_wrong_shape",
             [StagePermission::EmitPhysicalEventRecord],
@@ -367,7 +405,7 @@ fn effect_programs_expose_permissions_and_event_contracts() {
 
     let Err(error) = EffectProgramDef::new(
         id(16),
-        DefinitionName::from_static("wrong_event_version"),
+        definition_name("wrong_event_version"),
         [op(
             "emit_wrong_version",
             [StagePermission::EmitPhysicalEventRecord],
@@ -405,7 +443,7 @@ fn registry_validates_action_effect_reference_permissions_and_events() {
 
     let Ok(under_permitted) = ActionDef::new(
         id(4),
-        DefinitionName::from_static("under_permitted"),
+        definition_name("under_permitted"),
         [role("actor")],
         [],
         [],
@@ -430,7 +468,7 @@ fn registry_validates_action_effect_reference_permissions_and_events() {
 
     let Ok(weak_contract) = ActionDef::new(
         id(8),
-        DefinitionName::from_static("weak_contract"),
+        definition_name("weak_contract"),
         [role("actor"), role("item"), role("destination")],
         [],
         [],
@@ -458,7 +496,7 @@ fn registry_validates_action_effect_reference_permissions_and_events() {
 
     let Ok(bad_event) = ActionDef::new(
         id(5),
-        DefinitionName::from_static("bad_event"),
+        definition_name("bad_event"),
         [role("actor"), role("item"), role("destination")],
         [],
         [],
@@ -517,7 +555,7 @@ fn registry_validates_process_effect_references_permissions_and_events() {
 
     let Ok(under_permitted) = ProcessDef::new(
         id(6),
-        DefinitionName::from_static("under_permitted_process"),
+        definition_name("under_permitted_process"),
         [role("actor")],
         state_schema(),
         [support(ResolutionTier::Concrete, id(1))],
@@ -542,7 +580,7 @@ fn registry_validates_process_effect_references_permissions_and_events() {
 
     let Ok(weak_contract) = ProcessDef::new(
         id(9),
-        DefinitionName::from_static("weak_process_contract"),
+        definition_name("weak_process_contract"),
         [role("actor"), role("item"), role("destination")],
         state_schema(),
         [support(ResolutionTier::Concrete, id(1))],
@@ -570,7 +608,7 @@ fn registry_validates_process_effect_references_permissions_and_events() {
 
     let Ok(bad_event) = ProcessDef::new(
         id(7),
-        DefinitionName::from_static("bad_process_event"),
+        definition_name("bad_process_event"),
         [role("actor"), role("item"), role("destination")],
         state_schema(),
         [support(ResolutionTier::Concrete, id(1))],
@@ -601,7 +639,7 @@ fn registry_validates_process_effect_references_permissions_and_events() {
 
     let Ok(read_only_program) = EffectProgramDef::new(
         id(40),
-        DefinitionName::from_static("abstract_observe"),
+        definition_name("abstract_observe"),
         [op(
             "observe",
             [StagePermission::ReadWorld],
@@ -616,7 +654,7 @@ fn registry_validates_process_effect_references_permissions_and_events() {
 
     let Ok(resolution_mismatch) = ProcessDef::new(
         id(41),
-        DefinitionName::from_static("resolution_mismatch"),
+        definition_name("resolution_mismatch"),
         [role("actor"), role("item"), role("destination")],
         state_schema(),
         [
@@ -653,27 +691,21 @@ fn process_defs_require_supported_resolution_and_preserve_lookup() {
     assert!(empty_state_schema().fields().is_empty());
 
     let Err(error) = ProcessStateSchema::new([
-        ProcessStateField::new(
-            StateFieldName::from_static("progress"),
-            StateValueType::from_static("u32"),
-        ),
-        ProcessStateField::new(
-            StateFieldName::from_static("progress"),
-            StateValueType::from_static("u64"),
-        ),
+        ProcessStateField::new(state_field_name("progress"), state_value_type("u32")),
+        ProcessStateField::new(state_field_name("progress"), state_value_type("u64")),
     ]) else {
         panic!("process state schemas must reject duplicate fields");
     };
     assert_eq!(
         error,
         DefinitionError::DuplicateStateField {
-            field: StateFieldName::from_static("progress"),
+            field: state_field_name("progress"),
         }
     );
 
     let Err(error) = ProcessDef::new(
         id(20),
-        DefinitionName::from_static("bad_process"),
+        definition_name("bad_process"),
         [role("actor")],
         state_schema(),
         [],
@@ -695,7 +727,7 @@ fn process_defs_require_supported_resolution_and_preserve_lookup() {
 
     let Err(error) = ProcessDef::new(
         id(21),
-        DefinitionName::from_static("duplicate_resolution"),
+        definition_name("duplicate_resolution"),
         [role("actor")],
         state_schema(),
         [
@@ -733,7 +765,7 @@ fn process_defs_require_supported_resolution_and_preserve_lookup() {
 fn semantic_declarations_validate_kind_owned_outputs() {
     let Err(error) = SemanticDeclarationDef::new(
         id(30),
-        DefinitionName::from_static("bad_intent_output"),
+        definition_name("bad_intent_output"),
         SemanticDeclarationKind::IntentTemplate,
         [
             SemanticInputKind::Pressure,
@@ -755,7 +787,7 @@ fn semantic_declarations_validate_kind_owned_outputs() {
 
     let Err(error) = SemanticDeclarationDef::new(
         id(32),
-        DefinitionName::from_static("bad_social_output"),
+        definition_name("bad_social_output"),
         SemanticDeclarationKind::SocialRule,
         [
             SemanticInputKind::HardEventEvidence,
@@ -777,7 +809,7 @@ fn semantic_declarations_validate_kind_owned_outputs() {
 
     let Ok(declaration) = SemanticDeclarationDef::new(
         id(31),
-        DefinitionName::from_static("intent_candidate"),
+        definition_name("intent_candidate"),
         SemanticDeclarationKind::IntentTemplate,
         [
             SemanticInputKind::Pressure,
@@ -804,7 +836,7 @@ fn semantic_declarations_validate_kind_owned_outputs() {
 
     let Ok(appraisal) = SemanticDeclarationDef::new(
         id(33),
-        DefinitionName::from_static("fear_appraisal"),
+        definition_name("fear_appraisal"),
         SemanticDeclarationKind::AppraisalRule,
         [
             SemanticInputKind::HardEventEvidence,
@@ -839,7 +871,7 @@ fn registry_rejects_duplicate_definition_ids_across_families() {
     let semantic = {
         let Ok(declaration) = SemanticDeclarationDef::new(
             program.id(),
-            DefinitionName::from_static("duplicate"),
+            definition_name("duplicate"),
             SemanticDeclarationKind::SemanticView,
             [SemanticInputKind::ActorContext],
             [SemanticOutputKind::DerivedActorContext],

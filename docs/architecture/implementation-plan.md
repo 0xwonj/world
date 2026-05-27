@@ -380,8 +380,12 @@ Primary focus:
 - relation store families
 - `EventHistoryStore`
 - `RuntimeControlStore`
-- accepted record stores
+- `SocialInstitutionalStore`
+- `ChronologyStore`
+- `EpistemicStore`
+- `AppraisalRecordStore`
 - `DerivedViewRegistry`
+- invalidation package vocabulary and derived-view staleness states
 - `QueryLayer`
 
 Crate focus:
@@ -390,16 +394,44 @@ Crate focus:
 world-model
 ```
 
+Small `world-core` additions are allowed only when the model needs new durable
+ids or ordering values. `world-defs` should remain a consumed input, not a
+Phase 3 implementation target.
+
 Lock now:
 
 - stores are hosted by `WorldModel`
 - hard, non-hard, actor-relative, and runtime-control state stay distinct
 - queries are read surfaces, not mutation paths
-- `EventHistoryStore` is committed-history facade
-- `RuntimeControlStore` is updated through accepted runtime-control paths
+- `EventHistoryStore` is a committed-history facade and does not produce
+  `EventRecord`s
+- `RuntimeControlStore` hosts durable runtime-control state and read surfaces;
+  runtime-control update validation and lifecycle belong to Phase 5
+- social, chronology, epistemic, and appraisal stores are separate containers;
+  their domain-specific validation and commit gates stay with their authority
+  owners
+- `DerivedViewRegistry` can consume invalidation vocabulary and mark staleness,
+  but cache policy and eager recomputation strategy stay open
+- public writes are intentionally absent from `world-model` in this phase;
+  local write helpers are crate-internal storage/fixture plumbing, not public
+  authority
+- model-side apply surfaces, when introduced later, are narrow receivers for
+  accepted packages; construction, validation, and causal commit authority stay
+  outside `world-model`
+- committed and accepted package forge prevention is not solved by public
+  constructors in this phase. It relies on private fields, narrow APIs, and
+  later runtime or engine facade ownership.
+- actor-relative and semantic query surfaces carry explicit scope and authority
+  labels even before full actor-context projection is implemented
 
 Leave open:
 
+- `CausalTransaction` construction, transaction staging, effect interpretation,
+  and committed hard package production
+- runtime-control update semantics, scheduler drain behavior, and process
+  lifecycle
+- social, chronology, epistemic, and appraisal commit-gate validation rules
+- full actor context assembly and semantic context derivation
 - concrete storage backend
 - index layout
 - cache strategy
@@ -409,7 +441,8 @@ Leave open:
 Exit condition:
 
 The model can hold current state, committed history, runtime control state, and
-read-only query surfaces without exposing broad arbitrary mutation.
+read-only query surfaces without exposing public write authority, while later
+runtime phases retain a clear place to introduce accepted package receivers.
 
 ## Phase 4: Causal Mutation Waist
 
@@ -442,6 +475,10 @@ Lock now:
 - effect handling receives staging APIs, not raw store mutation authority
 - committed hard outcomes append `EventRecord`s
 - commit publishes state updates and invalidation as one accepted package
+- `world-runtime` owns `CausalTransactionGate` semantics, transaction staging,
+  invariant checks, and committed package construction; `world-model` only
+  provides the storage and narrow application surface needed by accepted
+  commits
 
 Leave open:
 
@@ -490,6 +527,9 @@ Lock now:
   directly
 - abstract execution uses process progress, not hidden concrete action spam
 - scheduler has ordering, provenance, and drain guard surfaces
+- Phase 5 uses the Phase 3 `RuntimeControlStore` as storage, but owns
+  `RuntimeControlUpdate` validation, accepted update construction, scheduler
+  semantics, and process lifecycle rules
 
 Leave open:
 
