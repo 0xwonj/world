@@ -4,85 +4,50 @@ use world_core::{DefinitionId, ReplayLevel, VersionAnchor};
 
 use crate::error::DefinitionError;
 use crate::events::{EventContract, EventRecordSpec};
-use crate::keys::{DefinitionName, EffectKind};
+use crate::keys::{DefinitionName, EffectParamName};
 
-/// Permission a typed effect operation needs from the causal runtime stage.
-#[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StagePermission {
-    /// Read committed world state.
-    ReadWorld,
-    /// Read actor-owned or holder-relative state.
-    ReadActorOwnedState,
-    /// Read a derived engine view.
-    ReadDerivedEngineView,
-    /// Read a submitted role binding.
-    ReadSubmittedBinding,
-    /// Run validation without staging mutation.
-    Validate,
-    /// Acquire a runtime reservation.
-    AcquireReservation,
-    /// Release a runtime reservation.
-    ReleaseReservation,
-    /// Draw from an engine-owned random stream.
-    Rng,
-    /// Stage a hard physical mutation.
-    MutatePhysical,
-    /// Stage process progress or process lifecycle mutation.
-    MutateProcess,
-    /// Emit a hard physical event record.
-    EmitPhysicalEventRecord,
-    /// Emit a sensory event record.
-    EmitSensoryEventRecord,
-    /// Schedule durable process work.
-    ScheduleProcess,
-    /// Schedule a reaction request.
-    ScheduleReaction,
-}
+use super::{EffectArgBinding, EffectPrimitiveId};
 
 /// One checked primitive operation in a typed effect program.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EffectOp {
-    kind: EffectKind,
-    permissions: BTreeSet<StagePermission>,
-    emitted_events: BTreeSet<EventRecordSpec>,
+    primitive: EffectPrimitiveId,
+    args: Vec<EffectArgBinding>,
+    emitted_events: Vec<EventRecordSpec>,
 }
 
 impl EffectOp {
-    /// Creates an operation when it declares at least one stage permission.
+    /// Creates an operation that calls a checked primitive definition.
     pub fn new(
-        kind: EffectKind,
-        permissions: impl IntoIterator<Item = StagePermission>,
+        primitive: EffectPrimitiveId,
+        args: impl IntoIterator<Item = EffectArgBinding>,
         emitted_events: impl IntoIterator<Item = EventRecordSpec>,
     ) -> Result<Self, DefinitionError> {
-        let permissions = permissions.into_iter().collect::<BTreeSet<_>>();
-        let emitted_events = emitted_events.into_iter().collect::<BTreeSet<_>>();
-
-        if permissions.is_empty() {
-            return Err(DefinitionError::EmptyItemField {
-                type_name: "EffectOp",
-                field: "permissions",
-            });
-        }
-
-        if permissions_require_event(&permissions) && emitted_events.is_empty() {
-            return Err(DefinitionError::OperationRequiresEvent { operation: kind });
-        }
-
-        if !emitted_events.is_empty() && !permissions_allow_event_emission(&permissions) {
-            return Err(DefinitionError::EventPermissionNotDeclared { operation: kind });
-        }
+        let args = args.into_iter().collect::<Vec<_>>();
+        let emitted_events = emitted_events.into_iter().collect::<Vec<_>>();
+        validate_unique_args(primitive, &args)?;
+        validate_unique_events(primitive, &emitted_events)?;
 
         Ok(Self {
-            kind,
-            permissions,
+            primitive,
+            args,
             emitted_events,
         })
     }
 
-    /// Returns whether this operation needs an emitted event contract.
-    pub fn requires_event(&self) -> bool {
-        permissions_require_event(&self.permissions)
+    /// Returns the primitive this operation invokes.
+    pub const fn primitive(&self) -> EffectPrimitiveId {
+        self.primitive
+    }
+
+    /// Returns argument bindings in source order.
+    pub fn args(&self) -> &[EffectArgBinding] {
+        &self.args
+    }
+
+    /// Looks up an argument binding by parameter name.
+    pub fn arg(&self, param: &EffectParamName) -> Option<&EffectArgBinding> {
+        self.args.iter().find(|arg| arg.param() == param)
     }
 
     /// Returns whether this operation can emit no events.
@@ -95,22 +60,7 @@ impl EffectOp {
         self.emitted_events.contains(event)
     }
 
-    /// Returns true when this operation requires the permission.
-    pub fn requires_permission(&self, permission: StagePermission) -> bool {
-        self.permissions.contains(&permission)
-    }
-
-    /// Returns the operation kind.
-    pub fn kind(&self) -> &EffectKind {
-        &self.kind
-    }
-
-    /// Returns permissions required by this operation.
-    pub fn permissions(&self) -> impl Iterator<Item = &StagePermission> {
-        self.permissions.iter()
-    }
-
-    /// Returns event specs this operation can emit.
+    /// Returns event specs this operation can emit in declaration order.
     pub fn emitted_events(&self) -> impl Iterator<Item = &EventRecordSpec> {
         self.emitted_events.iter()
     }
@@ -204,14 +154,6 @@ impl EffectProgramDef {
         self.version
     }
 
-    /// Returns the union of permissions required by all operations.
-    pub fn required_permissions(&self) -> BTreeSet<StagePermission> {
-        self.operations
-            .iter()
-            .flat_map(|operation| operation.permissions().copied())
-            .collect()
-    }
-
     /// Returns the union of event specs that operations can emit.
     pub fn emitted_events(&self) -> BTreeSet<EventRecordSpec> {
         collect_emitted_events(&self.operations)
@@ -226,22 +168,36 @@ fn collect_emitted_events(operations: &[EffectOp]) -> BTreeSet<EventRecordSpec> 
         .collect()
 }
 
-fn permissions_require_event(permissions: &BTreeSet<StagePermission>) -> bool {
-    permissions.iter().any(|permission| {
-        matches!(
-            permission,
-            StagePermission::MutatePhysical
-                | StagePermission::EmitPhysicalEventRecord
-                | StagePermission::EmitSensoryEventRecord
-        )
-    })
+fn validate_unique_args(
+    primitive: EffectPrimitiveId,
+    args: &[EffectArgBinding],
+) -> Result<(), DefinitionError> {
+    let mut seen = BTreeSet::new();
+    for arg in args {
+        if !seen.insert(arg.param().clone()) {
+            return Err(DefinitionError::DuplicateEffectArg {
+                primitive,
+                param: arg.param().clone(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
-fn permissions_allow_event_emission(permissions: &BTreeSet<StagePermission>) -> bool {
-    permissions.iter().any(|permission| {
-        matches!(
-            permission,
-            StagePermission::EmitPhysicalEventRecord | StagePermission::EmitSensoryEventRecord
-        )
-    })
+fn validate_unique_events(
+    primitive: EffectPrimitiveId,
+    events: &[EventRecordSpec],
+) -> Result<(), DefinitionError> {
+    let mut seen = BTreeSet::new();
+    for event in events {
+        if !seen.insert(event.clone()) {
+            return Err(DefinitionError::DuplicateEffectEvent {
+                primitive,
+                event: event.clone(),
+            });
+        }
+    }
+
+    Ok(())
 }

@@ -80,11 +80,29 @@ pub(super) fn definition_name(value: &'static str) -> DefinitionName {
     name
 }
 
-pub(super) fn effect_kind(value: &'static str) -> EffectKind {
-    let Some(name) = EffectKind::new(value) else {
-        panic!("test effect kinds must be non-empty");
+pub(super) const PRIMITIVE_CREATE_ENTITY: u64 = 101;
+pub(super) const PRIMITIVE_PLACE_ENTITY: u64 = 102;
+pub(super) const PRIMITIVE_ACQUIRE_RESERVATION: u64 = 103;
+pub(super) const PRIMITIVE_SCHEDULE_PROCESS: u64 = 104;
+pub(super) const PRIMITIVE_UNKNOWN_SEMANTICS: u64 = 199;
+
+pub(super) fn primitive_id(value: u64) -> EffectPrimitiveId {
+    EffectPrimitiveId::new(definition(value))
+}
+
+pub(super) fn param_name(value: &'static str) -> EffectParamName {
+    let Some(name) = EffectParamName::new(value) else {
+        panic!("test primitive params must be non-empty");
     };
     name
+}
+
+pub(super) fn primitive_name(value: &'static str) -> DefinitionName {
+    definition_name(value)
+}
+
+pub(super) fn arg(param: &'static str, role: &'static str) -> EffectArgBinding {
+    EffectArgBinding::role(param_name(param), role_name(role))
 }
 
 pub(super) fn event_kind(value: &'static str) -> EventKind {
@@ -96,7 +114,7 @@ pub(super) fn event_kind(value: &'static str) -> EventKind {
 
 pub(super) fn event_spec() -> EventRecordSpec {
     let Ok(spec) = EventRecordSpec::new(
-        event_kind("EntityTransferred"),
+        event_kind("EntityPlaced"),
         [
             role_name("actor"),
             role_name("item"),
@@ -107,6 +125,122 @@ pub(super) fn event_spec() -> EventRecordSpec {
         panic!("test event specs must be valid");
     };
     spec
+}
+
+pub(super) fn primitive_def(
+    id: u64,
+    name: &'static str,
+    params: impl IntoIterator<Item = EffectParamDef>,
+    permissions: impl IntoIterator<Item = StagePermission>,
+    event_contract: EventContract,
+) -> EffectPrimitiveDef {
+    primitive_def_with_replay(
+        id,
+        name,
+        params,
+        permissions,
+        event_contract,
+        ReplayLevel::EventRebuild,
+    )
+}
+
+pub(super) fn primitive_def_with_replay(
+    id: u64,
+    name: &'static str,
+    params: impl IntoIterator<Item = EffectParamDef>,
+    permissions: impl IntoIterator<Item = StagePermission>,
+    event_contract: EventContract,
+    replay_level: ReplayLevel,
+) -> EffectPrimitiveDef {
+    let Ok(definition) = EffectPrimitiveDef::new(
+        primitive_id(id),
+        primitive_name(name),
+        params,
+        permissions,
+        event_contract,
+        replay_level,
+        version(1),
+    ) else {
+        panic!("test primitive definition must be valid");
+    };
+    definition
+}
+
+pub(super) fn create_entity_primitive() -> EffectPrimitiveDef {
+    primitive_def(
+        PRIMITIVE_CREATE_ENTITY,
+        "create_entity",
+        [EffectParamDef::new(
+            param_name("entity"),
+            EffectParamKind::EntityRole,
+        )],
+        [
+            StagePermission::MutatePhysical,
+            StagePermission::EmitPhysicalEventRecord,
+        ],
+        EventContract::new([event_spec()]),
+    )
+}
+
+pub(super) fn place_entity_primitive() -> EffectPrimitiveDef {
+    primitive_def(
+        PRIMITIVE_PLACE_ENTITY,
+        "place_entity",
+        [
+            EffectParamDef::new(param_name("item"), EffectParamKind::EntityRole),
+            EffectParamDef::new(param_name("destination"), EffectParamKind::EntityRole),
+        ],
+        [
+            StagePermission::ReadWorld,
+            StagePermission::MutatePhysical,
+            StagePermission::EmitPhysicalEventRecord,
+        ],
+        EventContract::new([event_spec()]),
+    )
+}
+
+pub(super) fn acquire_reservation_primitive() -> EffectPrimitiveDef {
+    primitive_def(
+        PRIMITIVE_ACQUIRE_RESERVATION,
+        "acquire_reservation",
+        [
+            EffectParamDef::new(param_name("item"), EffectParamKind::EntityRole),
+            EffectParamDef::new(param_name("holder"), EffectParamKind::OptionalEntityRole),
+        ],
+        [
+            StagePermission::AcquireReservation,
+            StagePermission::EmitPhysicalEventRecord,
+        ],
+        EventContract::new([event_spec()]),
+    )
+}
+
+pub(super) fn schedule_process_primitive() -> EffectPrimitiveDef {
+    primitive_def_with_replay(
+        PRIMITIVE_SCHEDULE_PROCESS,
+        "schedule_process",
+        [],
+        [StagePermission::ScheduleProcess],
+        EventContract::default(),
+        ReplayLevel::AuditOnly,
+    )
+}
+
+pub(super) fn unknown_semantics_primitive() -> EffectPrimitiveDef {
+    primitive_def(
+        PRIMITIVE_UNKNOWN_SEMANTICS,
+        "unknown_semantics",
+        [
+            EffectParamDef::new(param_name("item"), EffectParamKind::EntityRole),
+            EffectParamDef::new(param_name("destination"), EffectParamKind::EntityRole),
+        ],
+        [
+            StagePermission::ReadWorld,
+            StagePermission::MutatePhysical,
+            StagePermission::EmitPhysicalEventRecord,
+        ],
+        EventContract::new([event_spec()]),
+    )
 }
 
 pub(super) fn role(name: &'static str) -> RoleDef {
@@ -150,26 +284,26 @@ pub(super) fn process_support(
 }
 
 pub(super) fn op(
-    kind: &'static str,
-    permissions: impl IntoIterator<Item = StagePermission>,
+    primitive: EffectPrimitiveId,
+    args: impl IntoIterator<Item = EffectArgBinding>,
     emitted_events: impl IntoIterator<Item = EventRecordSpec>,
 ) -> EffectOp {
-    let Ok(op) = EffectOp::new(effect_kind(kind), permissions, emitted_events) else {
+    let Ok(op) = EffectOp::new(primitive, args, emitted_events) else {
         panic!("test effect op must be valid");
     };
     op
 }
 
-pub(super) fn transfer_program_with_id(
-    id: u64,
-    kind: &'static str,
-    permissions: Vec<StagePermission>,
-) -> EffectProgramDef {
+pub(super) fn place_program_with_id(id: u64, primitive: EffectPrimitiveId) -> EffectProgramDef {
     let event = event_spec();
     let Ok(program) = EffectProgramDef::new(
         definition(id),
-        definition_name("transfer"),
-        [op(kind, permissions, [event.clone()])],
+        definition_name("place"),
+        [op(
+            primitive,
+            [arg("item", "item"), arg("destination", "destination")],
+            [event.clone()],
+        )],
         EventContract::new([event]),
         ReplayLevel::EventRebuild,
         version(1),
@@ -179,22 +313,34 @@ pub(super) fn transfer_program_with_id(
     program
 }
 
-pub(super) fn transfer_program(
-    kind: &'static str,
-    permissions: Vec<StagePermission>,
-) -> EffectProgramDef {
-    transfer_program_with_id(1, kind, permissions)
+pub(super) fn place_program(primitive: EffectPrimitiveId) -> EffectProgramDef {
+    place_program_with_id(1, primitive)
+}
+
+pub(super) fn reservation_program() -> EffectProgramDef {
+    let event = event_spec();
+    let Ok(program) = EffectProgramDef::new(
+        definition(1),
+        definition_name("reserve_item"),
+        [op(
+            primitive_id(PRIMITIVE_ACQUIRE_RESERVATION),
+            [arg("item", "item"), arg("holder", "actor")],
+            [event.clone()],
+        )],
+        EventContract::new([event]),
+        ReplayLevel::EventRebuild,
+        version(1),
+    ) else {
+        panic!("test reservation program must be valid");
+    };
+    program
 }
 
 pub(super) fn process_tick_program() -> EffectProgramDef {
     let Ok(program) = EffectProgramDef::new(
         definition(1),
         definition_name("process_tick"),
-        [op(
-            "schedule_process",
-            [StagePermission::ScheduleProcess],
-            [],
-        )],
+        [op(primitive_id(PRIMITIVE_SCHEDULE_PROCESS), [], [])],
         EventContract::default(),
         ReplayLevel::AuditOnly,
         version(1),
@@ -204,7 +350,7 @@ pub(super) fn process_tick_program() -> EffectProgramDef {
     program
 }
 
-pub(super) fn transfer_action_with_ids(
+pub(super) fn place_action_with_ids(
     id: u64,
     effect_program: u64,
     stage_permissions: Vec<StagePermission>,
@@ -220,14 +366,15 @@ pub(super) fn transfer_action_with_ids(
         EventContract::new([event]),
         stage_permissions,
         version(2),
-    ) else {
+    )
+    .and_then(|action| action.with_actor_role(role_name("actor"))) else {
         panic!("test action must be valid");
     };
     action
 }
 
-pub(super) fn transfer_action(stage_permissions: Vec<StagePermission>) -> ActionDef {
-    transfer_action_with_ids(2, 1, stage_permissions)
+pub(super) fn place_action(stage_permissions: Vec<StagePermission>) -> ActionDef {
+    place_action_with_ids(2, 1, stage_permissions)
 }
 
 pub(super) fn haul_process_with_resolutions(
@@ -252,8 +399,12 @@ pub(super) fn haul_process_with_resolutions(
     process
 }
 
-pub(super) fn registry(program: EffectProgramDef, action: ActionDef) -> DefinitionRegistry {
-    let Ok(registry) = DefinitionRegistry::new([program], [action], [], []) else {
+pub(super) fn registry(
+    primitive: EffectPrimitiveDef,
+    program: EffectProgramDef,
+    action: ActionDef,
+) -> DefinitionRegistry {
+    let Ok(registry) = DefinitionRegistry::new([primitive], [program], [action], [], []) else {
         panic!("test registry must be valid");
     };
     registry
@@ -268,29 +419,27 @@ pub(super) fn process_registry_with_resolutions(
 ) -> DefinitionRegistry {
     let program = process_tick_program();
     let process = haul_process_with_resolutions(program.id(), resolutions);
-    let Ok(registry) = DefinitionRegistry::new([program], [], [process], []) else {
+    let Ok(registry) =
+        DefinitionRegistry::new([schedule_process_primitive()], [program], [], [process], [])
+    else {
         panic!("test process registry must be valid");
     };
     registry
 }
 
 pub(super) fn empty_registry() -> DefinitionRegistry {
-    let Ok(registry) = DefinitionRegistry::new([], [], [], []) else {
+    let Ok(registry) = DefinitionRegistry::new([], [], [], [], []) else {
         panic!("empty registry must be valid");
     };
     registry
 }
 
-pub(super) fn transfer_registry() -> DefinitionRegistry {
+pub(super) fn place_registry() -> DefinitionRegistry {
     registry(
-        transfer_program(
-            "transfer_entity",
-            vec![
-                StagePermission::MutatePhysical,
-                StagePermission::EmitPhysicalEventRecord,
-            ],
-        ),
-        transfer_action(vec![
+        place_entity_primitive(),
+        place_program(primitive_id(PRIMITIVE_PLACE_ENTITY)),
+        place_action(vec![
+            StagePermission::ReadWorld,
             StagePermission::MutatePhysical,
             StagePermission::EmitPhysicalEventRecord,
         ]),
@@ -299,40 +448,29 @@ pub(super) fn transfer_registry() -> DefinitionRegistry {
 
 pub(super) fn reservation_registry() -> DefinitionRegistry {
     registry(
-        transfer_program(
-            "acquire_reservation",
-            vec![
-                StagePermission::AcquireReservation,
-                StagePermission::EmitPhysicalEventRecord,
-            ],
-        ),
-        transfer_action(vec![
+        acquire_reservation_primitive(),
+        reservation_program(),
+        place_action(vec![
             StagePermission::AcquireReservation,
             StagePermission::EmitPhysicalEventRecord,
         ]),
     )
 }
 
-pub(super) fn insert_then_transfer_registry() -> DefinitionRegistry {
+pub(super) fn insert_then_place_registry() -> DefinitionRegistry {
     let event = event_spec();
     let Ok(program) = EffectProgramDef::new(
         definition(1),
-        definition_name("insert_then_transfer"),
+        definition_name("insert_then_place"),
         [
             op(
-                "insert_entity",
-                [
-                    StagePermission::MutatePhysical,
-                    StagePermission::EmitPhysicalEventRecord,
-                ],
+                primitive_id(PRIMITIVE_CREATE_ENTITY),
+                [arg("entity", "entity")],
                 [event.clone()],
             ),
             op(
-                "transfer_entity",
-                [
-                    StagePermission::MutatePhysical,
-                    StagePermission::EmitPhysicalEventRecord,
-                ],
+                primitive_id(PRIMITIVE_PLACE_ENTITY),
+                [arg("item", "item"), arg("destination", "destination")],
                 [event.clone()],
             ),
         ],
@@ -356,18 +494,29 @@ pub(super) fn insert_then_transfer_registry() -> DefinitionRegistry {
         definition(1),
         EventContract::new([event]),
         [
+            StagePermission::ReadWorld,
             StagePermission::MutatePhysical,
             StagePermission::EmitPhysicalEventRecord,
         ],
         version(2),
-    ) else {
+    )
+    .and_then(|action| action.with_actor_role(role_name("actor"))) else {
         panic!("test action must be valid");
     };
 
-    registry(program, action)
+    let Ok(registry) = DefinitionRegistry::new(
+        [create_entity_primitive(), place_entity_primitive()],
+        [program],
+        [action],
+        [],
+        [],
+    ) else {
+        panic!("test insert-then-place registry must be valid");
+    };
+    registry
 }
 
-pub(super) fn transfer_request_for(action: u64) -> RuntimeRequest {
+pub(super) fn place_request_for(action: u64) -> RuntimeRequest {
     RuntimeRequest::new(
         RequestSource::Player,
         Some(entity(1)),
@@ -382,11 +531,11 @@ pub(super) fn transfer_request_for(action: u64) -> RuntimeRequest {
     )
 }
 
-pub(super) fn transfer_request() -> RuntimeRequest {
-    transfer_request_for(2)
+pub(super) fn place_request() -> RuntimeRequest {
+    place_request_for(2)
 }
 
-pub(super) fn insert_then_transfer_request() -> RuntimeRequest {
+pub(super) fn insert_then_place_request() -> RuntimeRequest {
     RuntimeRequest::new(
         RequestSource::Player,
         Some(entity(1)),
@@ -402,6 +551,255 @@ pub(super) fn insert_then_transfer_request() -> RuntimeRequest {
     )
 }
 
+fn semantics_for(definitions: &DefinitionRegistry) -> PrimitiveSemanticsRegistry {
+    let mut builder = PrimitiveSemanticsRegistryBuilder::new();
+    if definitions
+        .effect_primitive(primitive_id(PRIMITIVE_CREATE_ENTITY))
+        .is_some()
+    {
+        add_handler(&mut builder, TestCreateEntity);
+    }
+    if definitions
+        .effect_primitive(primitive_id(PRIMITIVE_PLACE_ENTITY))
+        .is_some()
+    {
+        add_handler(&mut builder, TestPlaceEntity);
+    }
+    if definitions
+        .effect_primitive(primitive_id(PRIMITIVE_ACQUIRE_RESERVATION))
+        .is_some()
+    {
+        add_handler(&mut builder, TestAcquireReservation);
+    }
+    let Ok(registry) = builder.build_against(definitions) else {
+        panic!("test semantics registry should match definitions");
+    };
+    registry
+}
+
+fn add_handler(builder: &mut PrimitiveSemanticsRegistryBuilder, handler: impl PrimitiveSemantics) {
+    if let Err(error) = builder.add_handler(handler) {
+        panic!("test primitive handler should install: {error}");
+    }
+}
+
+fn contract(definition: EffectPrimitiveDef) -> PrimitiveSemanticsContract {
+    PrimitiveSemanticsContract::new(
+        definition.params().to_vec(),
+        definition.required_permissions().copied(),
+        definition.event_contract().clone(),
+        definition.replay_level(),
+        definition.version(),
+    )
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct TestCreateEntity;
+
+impl PrimitiveSemantics for TestCreateEntity {
+    fn primitive(&self) -> EffectPrimitiveId {
+        primitive_id(PRIMITIVE_CREATE_ENTITY)
+    }
+
+    fn contract(&self) -> PrimitiveSemanticsContract {
+        contract(create_entity_primitive())
+    }
+
+    fn validate(
+        &self,
+        invocation: PrimitiveInvocation<'_>,
+        context: &mut PrimitiveValidationContext<'_>,
+    ) -> Result<(), PrimitiveValidationFailure> {
+        let role = invocation.required_role(&param_name("entity"))?;
+        let (role, entity) = context.required_role_entity(&role)?;
+        if context.contains_entity(entity) {
+            return Err(RejectedOutcome::new(
+                context.action(),
+                RejectionReason::EntityAlreadyPresent { role, entity },
+            )
+            .into());
+        }
+        context.insert_entity(entity);
+        Ok(())
+    }
+
+    fn stage(
+        &self,
+        invocation: PrimitiveInvocation<'_>,
+        context: &mut PrimitiveStageContext<'_, '_, '_, '_>,
+    ) -> Result<(), RuntimeError> {
+        let role = invocation.required_role(&param_name("entity"))?;
+        let (role, entity) = context.required_role_entity(&role)?;
+        if context.contains_entity(entity) {
+            return Err(RuntimeError::DuplicateVisibleEntity { role, entity });
+        }
+        context.stage_physical_change(
+            invocation,
+            HardStateChange::insert_entity(entity, None, context.provenance()),
+        )?;
+        context.emit_declared_events(invocation)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct TestPlaceEntity;
+
+impl PrimitiveSemantics for TestPlaceEntity {
+    fn primitive(&self) -> EffectPrimitiveId {
+        primitive_id(PRIMITIVE_PLACE_ENTITY)
+    }
+
+    fn contract(&self) -> PrimitiveSemanticsContract {
+        contract(place_entity_primitive())
+    }
+
+    fn validate(
+        &self,
+        invocation: PrimitiveInvocation<'_>,
+        context: &mut PrimitiveValidationContext<'_>,
+    ) -> Result<(), PrimitiveValidationFailure> {
+        let item_role = invocation.required_role(&param_name("item"))?;
+        let destination_role = invocation.required_role(&param_name("destination"))?;
+        let (item_role, item) = context.required_role_entity(&item_role)?;
+        let (destination_role, destination) = context.required_role_entity(&destination_role)?;
+        validate_visible_entity(context, item_role, item)?;
+        validate_visible_entity(context, destination_role, destination)?;
+
+        let relation = RelationKey::new(item, RelationFamily::ContainedIn, destination);
+        if context.contains_relation(relation) {
+            return Err(RejectedOutcome::new(
+                context.action(),
+                RejectionReason::RelationAlreadyPresent {
+                    subject: item,
+                    family: RelationFamily::ContainedIn,
+                    object: destination,
+                },
+            )
+            .into());
+        }
+        context.insert_relation(relation);
+        Ok(())
+    }
+
+    fn stage(
+        &self,
+        invocation: PrimitiveInvocation<'_>,
+        context: &mut PrimitiveStageContext<'_, '_, '_, '_>,
+    ) -> Result<(), RuntimeError> {
+        let item_role = invocation.required_role(&param_name("item"))?;
+        let destination_role = invocation.required_role(&param_name("destination"))?;
+        let (item_role, item) = context.required_role_entity(&item_role)?;
+        let (destination_role, destination) = context.required_role_entity(&destination_role)?;
+        require_visible_entity(context, item_role, item)?;
+        require_visible_entity(context, destination_role, destination)?;
+
+        let relation = RelationKey::new(item, RelationFamily::ContainedIn, destination);
+        if context.contains_relation(relation) {
+            return Err(RuntimeError::DuplicateVisibleRelation {
+                subject: item,
+                family: RelationFamily::ContainedIn,
+                object: destination,
+            });
+        }
+        context.stage_physical_change(
+            invocation,
+            HardStateChange::insert_relation(
+                item,
+                RelationFamily::ContainedIn,
+                destination,
+                context.provenance(),
+            ),
+        )?;
+        context.emit_declared_events(invocation)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct TestAcquireReservation;
+
+impl PrimitiveSemantics for TestAcquireReservation {
+    fn primitive(&self) -> EffectPrimitiveId {
+        primitive_id(PRIMITIVE_ACQUIRE_RESERVATION)
+    }
+
+    fn contract(&self) -> PrimitiveSemanticsContract {
+        contract(acquire_reservation_primitive())
+    }
+
+    fn validate(
+        &self,
+        invocation: PrimitiveInvocation<'_>,
+        context: &mut PrimitiveValidationContext<'_>,
+    ) -> Result<(), PrimitiveValidationFailure> {
+        let item_role = invocation.required_role(&param_name("item"))?;
+        let (_, item) = context.required_role_entity(&item_role)?;
+        let target = ReservationTarget::Entity(item);
+        if context.contains_active_reservation(&target) {
+            return Err(RejectedOutcome::new(
+                context.action(),
+                RejectionReason::ReservationAlreadyHeld { target },
+            )
+            .into());
+        }
+        context.insert_reservation_target(target);
+        Ok(())
+    }
+
+    fn stage(
+        &self,
+        invocation: PrimitiveInvocation<'_>,
+        context: &mut PrimitiveStageContext<'_, '_, '_, '_>,
+    ) -> Result<(), RuntimeError> {
+        let item_role = invocation.required_role(&param_name("item"))?;
+        let (_, item) = context.required_role_entity(&item_role)?;
+        let holder = match invocation.optional_role(&param_name("holder"))? {
+            Some(role) => {
+                let (_, entity) = context.required_role_entity(&role)?;
+                world_model::ReservationHolder::Entity(entity)
+            }
+            None => world_model::ReservationHolder::Runtime,
+        };
+        context.stage_reservation_acquire(
+            invocation,
+            AcquireReservationRequest::new(
+                holder,
+                ReservationTarget::Entity(item),
+                context.request_time(),
+                context.provenance(),
+            ),
+        )?;
+        context.emit_declared_events(invocation)
+    }
+}
+
+fn validate_visible_entity(
+    context: &PrimitiveValidationContext<'_>,
+    role: RoleName,
+    entity: EntityId,
+) -> Result<(), PrimitiveValidationFailure> {
+    if context.contains_entity(entity) {
+        Ok(())
+    } else {
+        Err(RejectedOutcome::new(
+            context.action(),
+            RejectionReason::MissingEntity { role, entity },
+        )
+        .into())
+    }
+}
+
+fn require_visible_entity(
+    context: &PrimitiveStageContext<'_, '_, '_, '_>,
+    role: RoleName,
+    entity: EntityId,
+) -> Result<(), RuntimeError> {
+    if context.contains_entity(entity) {
+        Ok(())
+    } else {
+        Err(RuntimeError::MissingVisibleEntity { role, entity })
+    }
+}
+
 pub(super) fn runtime(definitions: DefinitionRegistry) -> CausalRuntime {
     let Ok(transaction_ids) = CausalTransactionIdIssuer::starting_at(1) else {
         panic!("test transaction id issuer must be valid");
@@ -409,7 +807,16 @@ pub(super) fn runtime(definitions: DefinitionRegistry) -> CausalRuntime {
     let Ok(event_ids) = EventRecordIdIssuer::starting_at(1) else {
         panic!("test event id issuer must be valid");
     };
-    CausalRuntime::with_hard_issuers_for_empty_model(definitions, transaction_ids, event_ids)
+    let semantics = semantics_for(&definitions);
+    match CausalRuntime::with_hard_issuers_for_empty_model(
+        definitions,
+        semantics,
+        transaction_ids,
+        event_ids,
+    ) {
+        Ok(runtime) => runtime,
+        Err(error) => panic!("test runtime should be valid: {error}"),
+    }
 }
 
 pub(super) fn runtime_for_model(
@@ -422,8 +829,14 @@ pub(super) fn runtime_for_model(
     let Ok(event_ids) = EventRecordIdIssuer::starting_at(1) else {
         panic!("test event id issuer must be valid");
     };
-    match CausalRuntime::with_hard_issuers_for_model(definitions, transaction_ids, event_ids, model)
-    {
+    let semantics = semantics_for(&definitions);
+    match CausalRuntime::with_hard_issuers_for_model(
+        definitions,
+        semantics,
+        transaction_ids,
+        event_ids,
+        model,
+    ) {
         Ok(runtime) => runtime,
         Err(error) => panic!("hydrated runtime should be valid: {error}"),
     }

@@ -96,7 +96,7 @@ replay and audit provenance
 Standard primitives own reusable world meaning:
 
 ```text
-transfer_entity
+place_entity
 move_entity
 attach_entity
 apply_damage
@@ -329,8 +329,12 @@ apply_damage(target, damage)
   -> add condition
   -> emit DamageApplied / BodyPartWounded
 
-transfer_entity(item, destination)
-  -> update containment relation
+place_entity(item, destination)
+  -> insert containment relation
+  -> emit EntityPlaced
+
+transfer_entity(item, from, destination)
+  -> remove or update existing containment relation
   -> emit EntityTransferred
 
 ignite(target)

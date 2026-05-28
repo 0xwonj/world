@@ -5,5 +5,6 @@ mod schedule_key;
 
 pub(crate) use draft::{RuntimeControlDraft, RuntimeControlTransactionChanges};
 pub(crate) use ids::RuntimeControlIds;
-pub(crate) use reservation::{AcquireReservationRequest, ReservationRuntime};
+pub use reservation::AcquireReservationRequest;
+pub(crate) use reservation::ReservationRuntime;
 pub use schedule_key::WakeupScheduleKey;

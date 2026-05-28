@@ -70,9 +70,10 @@ fn accepted_package_authority_surface_stays_on_allowlist() {
         let source = fs::read_to_string(&file)
             .unwrap_or_else(|error| panic!("failed to read {relative}: {error}"));
         let code = code_without_comments_or_strings(&source);
+        let analysis = SourceAnalysis::new(&code);
 
         for rule in RULES {
-            if code.contains(rule.pattern) && !rule.allows(&relative) {
+            if rule_matches(rule.pattern, &analysis) && !rule.allows(&relative) {
                 violations.push(format!("{} contains `{}`", relative, rule.pattern));
             }
         }
@@ -95,10 +96,14 @@ fn authority_surface_scan_ignores_comments_and_strings() {
     "###;
 
     let code = code_without_comments_or_strings(source);
+    let analysis = SourceAnalysis::new(&code);
 
-    assert!(!code.contains("AcceptedHardCommit::new("));
-    assert!(!code.contains(".apply_hard_commit("));
-    assert!(code.contains("AcceptedRuntimeControlUpdate::new("));
+    assert!(!rule_matches("AcceptedHardCommit::new(", &analysis));
+    assert!(!rule_matches(".apply_hard_commit(", &analysis));
+    assert!(rule_matches(
+        "AcceptedRuntimeControlUpdate::new(",
+        &analysis
+    ));
 }
 
 #[test]
@@ -113,9 +118,32 @@ fn authority_surface_scan_handles_nested_block_comments_and_raw_strings() {
     "###;
 
     let code = code_without_comments_or_strings(source);
+    let analysis = SourceAnalysis::new(&code);
 
-    assert!(!code.contains("AcceptedHardCommit::with_control_changes("));
-    assert_eq!(code.matches(".apply_runtime_control_update(").count(), 1);
+    assert!(!rule_matches(
+        "AcceptedHardCommit::with_control_changes(",
+        &analysis
+    ));
+    assert!(rule_matches(".apply_runtime_control_update(", &analysis));
+}
+
+#[test]
+fn authority_surface_scan_normalizes_whitespace_ufcs_and_aliases() {
+    let source = r#"
+        use world_model::AcceptedRuntimeControlUpdate as ControlUpdate;
+        AcceptedHardCommit :: new (transaction, events, changes, invalidation);
+        ControlUpdate::new(header, changes, invalidation);
+        WorldModel::apply_hard_commit(&mut model, commit);
+    "#;
+    let code = code_without_comments_or_strings(source);
+    let analysis = SourceAnalysis::new(&code);
+
+    assert!(rule_matches("AcceptedHardCommit::new(", &analysis));
+    assert!(rule_matches(
+        "AcceptedRuntimeControlUpdate::new(",
+        &analysis
+    ));
+    assert!(rule_matches(".apply_hard_commit(", &analysis));
 }
 
 fn workspace_root() -> PathBuf {
@@ -173,6 +201,104 @@ fn relative_path(root: &Path, path: &Path) -> String {
         })
         .to_string_lossy()
         .replace(std::path::MAIN_SEPARATOR, "/")
+}
+
+struct SourceAnalysis {
+    code: String,
+    normalized: String,
+}
+
+impl SourceAnalysis {
+    fn new(code: &str) -> Self {
+        Self {
+            code: code.to_owned(),
+            normalized: normalize_tokens(code),
+        }
+    }
+}
+
+fn rule_matches(pattern: &str, analysis: &SourceAnalysis) -> bool {
+    let normalized_pattern = normalize_tokens(pattern);
+    if analysis.normalized.contains(&normalized_pattern) {
+        return true;
+    }
+
+    match pattern {
+        "AcceptedHardCommit::new(" => simple_aliases(&analysis.code, "AcceptedHardCommit")
+            .iter()
+            .any(|alias| analysis.normalized.contains(&format!("{alias}::new("))),
+        "AcceptedHardCommit::with_control_changes(" => {
+            simple_aliases(&analysis.code, "AcceptedHardCommit")
+                .iter()
+                .any(|alias| {
+                    analysis
+                        .normalized
+                        .contains(&format!("{alias}::with_control_changes("))
+                })
+        }
+        "AcceptedRuntimeControlUpdate::new(" => {
+            simple_aliases(&analysis.code, "AcceptedRuntimeControlUpdate")
+                .iter()
+                .any(|alias| analysis.normalized.contains(&format!("{alias}::new(")))
+        }
+        ".apply_hard_commit(" => {
+            analysis
+                .normalized
+                .contains("WorldModel::apply_hard_commit(")
+                || simple_aliases(&analysis.code, "WorldModel")
+                    .iter()
+                    .any(|alias| {
+                        analysis
+                            .normalized
+                            .contains(&format!("{alias}::apply_hard_commit("))
+                    })
+        }
+        ".apply_runtime_control_update(" => {
+            analysis
+                .normalized
+                .contains("WorldModel::apply_runtime_control_update(")
+                || simple_aliases(&analysis.code, "WorldModel")
+                    .iter()
+                    .any(|alias| {
+                        analysis
+                            .normalized
+                            .contains(&format!("{alias}::apply_runtime_control_update("))
+                    })
+        }
+        _ => false,
+    }
+}
+
+fn normalize_tokens(source: &str) -> String {
+    source
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
+}
+
+fn simple_aliases(source: &str, canonical: &str) -> Vec<String> {
+    let needle = format!("{canonical} as ");
+    let mut aliases = source
+        .lines()
+        .filter_map(|line| line.split_once(&needle).map(|(_, alias)| alias))
+        .filter_map(|alias| take_identifier(alias.trim()))
+        .collect::<Vec<_>>();
+
+    let type_target = format!("= {canonical}");
+    aliases.extend(source.lines().filter_map(|line| {
+        let line = line.trim();
+        let alias = line.strip_prefix("type ")?.split_once(&type_target)?.0;
+        take_identifier(alias.trim())
+    }));
+    aliases
+}
+
+fn take_identifier(source: &str) -> Option<String> {
+    let identifier = source
+        .chars()
+        .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+        .collect::<String>();
+    (!identifier.is_empty()).then_some(identifier)
 }
 
 fn code_without_comments_or_strings(source: &str) -> String {

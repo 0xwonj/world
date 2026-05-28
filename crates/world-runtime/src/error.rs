@@ -3,7 +3,9 @@ use world_core::{
     CausalTransactionId, DefinitionId, EntityId, EventRecordId, ProcessInstanceId, ReservationId,
     ScheduledWakeupId,
 };
-use world_defs::{EffectKind, EventRecordSpec, ResolutionTier, RoleName, StagePermission};
+use world_defs::{
+    EffectParamName, EffectPrimitiveId, EventRecordSpec, ResolutionTier, RoleName, StagePermission,
+};
 use world_model::{ModelError, ProcessLifecycle, RelationFamily, TransactionCause, WakeupTarget};
 
 /// Error returned by runtime infrastructure while executing causal work.
@@ -22,17 +24,53 @@ pub enum RuntimeError {
         /// Missing effect program.
         effect_program: DefinitionId,
     },
-    /// An effect operation had no runtime-owned handler.
-    #[error("no runtime handler is registered for effect {kind}")]
-    MissingEffectHandler {
-        /// Effect operation family.
-        kind: EffectKind,
+    /// A primitive semantics registry has two handlers for the same primitive.
+    #[error("primitive {primitive} has more than one runtime semantics handler")]
+    DuplicatePrimitiveSemantics {
+        /// Primitive with duplicate handlers.
+        primitive: EffectPrimitiveId,
     },
-    /// An effect handler required a permission the operation did not declare.
-    #[error("effect {operation} did not declare required permission {permission:?}")]
+    /// A primitive semantics handler references a primitive definition that is not installed.
+    #[error("primitive {primitive} has runtime semantics but no definition")]
+    PrimitiveSemanticsForUnknownDefinition {
+        /// Primitive implemented by the handler.
+        primitive: EffectPrimitiveId,
+    },
+    /// A primitive semantics handler contract does not match its definition.
+    #[error("primitive {primitive} semantics contract mismatches definition field {field}")]
+    PrimitiveSemanticsContractMismatch {
+        /// Primitive with mismatched semantics.
+        primitive: EffectPrimitiveId,
+        /// Mismatched contract field.
+        field: &'static str,
+    },
+    /// An action-executed primitive has no runtime semantics handler.
+    #[error("no runtime semantics handler is registered for primitive {primitive}")]
+    MissingPrimitiveSemantics {
+        /// Primitive with no installed handler.
+        primitive: EffectPrimitiveId,
+    },
+    /// Runtime received a primitive operation missing a required argument.
+    #[error("primitive {primitive} invocation is missing argument {param}")]
+    MissingPrimitiveArgument {
+        /// Invoked primitive.
+        primitive: EffectPrimitiveId,
+        /// Missing parameter.
+        param: EffectParamName,
+    },
+    /// Runtime received a primitive argument kind the handler cannot consume.
+    #[error("primitive {primitive} argument {param} has unsupported value kind")]
+    UnsupportedPrimitiveArgument {
+        /// Invoked primitive.
+        primitive: EffectPrimitiveId,
+        /// Unsupported parameter.
+        param: EffectParamName,
+    },
+    /// A primitive handler required a permission the primitive definition did not declare.
+    #[error("primitive {primitive} did not declare required permission {permission:?}")]
     PermissionNotDeclared {
-        /// Effect operation family.
-        operation: EffectKind,
+        /// Invoked primitive.
+        primitive: EffectPrimitiveId,
         /// Missing stage permission.
         permission: StagePermission,
     },
@@ -41,12 +79,6 @@ pub enum RuntimeError {
     MissingBoundRole {
         /// Missing role.
         role: RoleName,
-    },
-    /// A built-in runtime handler declared an invalid static role name.
-    #[error("built-in runtime handler used invalid role name {name}")]
-    InvalidStaticRole {
-        /// Invalid role name.
-        name: &'static str,
     },
     /// An effect handler could not see an entity needed after validation.
     #[error("visible transaction state is missing entity {} for role {role}", .entity.get())]
@@ -86,11 +118,11 @@ pub enum RuntimeError {
         /// Missing event.
         event: EventRecordSpec,
     },
-    /// An effect handler attempted to emit an event not declared by its operation.
-    #[error("effect {operation} attempted to emit undeclared event {event}")]
+    /// A primitive handler attempted to emit an event not declared by its operation.
+    #[error("primitive {primitive} attempted to emit undeclared event {event}")]
     EventNotDeclaredForOperation {
-        /// Effect operation family.
-        operation: EffectKind,
+        /// Invoked primitive.
+        primitive: EffectPrimitiveId,
         /// Undeclared event.
         event: EventRecordSpec,
     },

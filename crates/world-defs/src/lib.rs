@@ -11,18 +11,22 @@ mod roles;
 mod semantics;
 
 pub use actions::ActionDef;
-pub use effects::{EffectOp, EffectProgramDef, StagePermission};
+pub use effects::{
+    EffectArgBinding, EffectArgKind, EffectArgValue, EffectOp, EffectParamDef, EffectParamKind,
+    EffectPrimitiveDef, EffectPrimitiveDescriptor, EffectPrimitiveId, EffectProgramDef,
+    StagePermission,
+};
 pub use error::DefinitionError;
 pub use events::{EventContract, EventRecordSpec};
 pub use keys::{
-    BindingRuleKind, DefinitionName, EffectKind, EventKind, PolicyKey, RequirementKind, RoleName,
-    RoleType, StateFieldName, StateValueType,
+    BindingRuleKind, DefinitionName, EffectKind, EffectParamName, EventKind, PolicyKey,
+    RequirementKind, RoleName, RoleType, StateFieldName, StateValueType,
 };
 pub use processes::{
     ProcessDef, ProcessPolicies, ProcessStateField, ProcessStateSchema, ResolutionSupport,
     ResolutionTier,
 };
-pub use registry::DefinitionRegistry;
+pub use registry::{DefinitionBundle, DefinitionRegistry, DefinitionRegistryBuilder};
 pub use roles::{BindingRuleDef, RequirementDef, RoleDef};
 pub use semantics::{
     SemanticDeclarationDef, SemanticDeclarationKind, SemanticInputKind, SemanticOutputKind,

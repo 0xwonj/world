@@ -576,6 +576,7 @@ Primary focus:
 - `EffectPrimitiveDef` completion where Phase 2 left room
 - `EffectOp` references to checked primitive definitions rather than only raw
   operation names
+- descriptor-based primitive definitions in `world-defs`
 - `PrimitiveSemanticsRegistry`
 - standard primitive definition bundle
 - standard primitive semantics installer
@@ -608,6 +609,8 @@ Lock now:
   receiving raw staging callbacks
 - missing primitive semantics fails load or execution clearly instead of
   falling back to generic field mutation
+- process effect programs are definition-verified here, but process-program
+  execution remains a separate runtime path
 - actor-context code may depend on pure standard vocabulary, but not on
   runtime semantics installers
 

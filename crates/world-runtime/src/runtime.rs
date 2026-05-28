@@ -13,20 +13,22 @@ use crate::{
     RuntimeError,
     control::RuntimeControlIds,
     outcome::{CommittedOutcome, RejectedOutcome, RejectionReason, RuntimeOutcome},
+    primitive::{PrimitiveSemanticsRegistry, PrimitiveValidationFailure},
     process::{ProcessControlOutcome, ProcessRuntime, ProcessRuntimeUpdate, StartProcessRequest},
     request::RuntimeRequest,
     scheduler::{
         DrainReport, DrainRequest, ScheduleWakeupRequest, ScheduledWakeupOutcome, Scheduler,
     },
     transaction::{
-        CausalTransactionBuilder, CausalTransactionHeader, CommitFinalizer, EffectStager,
-        RuntimeValidationFailure, RuntimeValidator, TypedEffectInterpreter,
+        CausalTransactionBuilder, CausalTransactionHeader, CommitFinalizer, EffectInterpretation,
+        EffectStager, RuntimeValidator, TypedEffectInterpreter,
     },
 };
 
 /// Public causal mutation waist.
 pub struct CausalRuntime {
     definitions: DefinitionRegistry,
+    semantics: PrimitiveSemanticsRegistry,
     transaction_ids: CausalTransactionIdIssuer,
     event_ids: EventRecordIdIssuer,
     control_ids: RuntimeControlIds,
@@ -36,23 +38,30 @@ pub struct CausalRuntime {
 impl CausalRuntime {
     fn new(
         definitions: DefinitionRegistry,
+        semantics: PrimitiveSemanticsRegistry,
         transaction_ids: CausalTransactionIdIssuer,
         event_ids: EventRecordIdIssuer,
         control_ids: RuntimeControlIds,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, RuntimeError> {
+        semantics.validate_against(&definitions)?;
+        Ok(Self {
             definitions,
+            semantics,
             transaction_ids,
             event_ids,
             control_ids,
             interpreter: TypedEffectInterpreter,
-        }
+        })
     }
 
     /// Creates a causal runtime for a new empty model with fresh id issuers.
-    pub fn for_empty_model(definitions: DefinitionRegistry) -> Self {
+    pub fn for_empty_model(
+        definitions: DefinitionRegistry,
+        semantics: PrimitiveSemanticsRegistry,
+    ) -> Result<Self, RuntimeError> {
         Self::new(
             definitions,
+            semantics,
             CausalTransactionIdIssuer::new(),
             EventRecordIdIssuer::new(),
             RuntimeControlIds::new(),
@@ -63,11 +72,13 @@ impl CausalRuntime {
     /// id issuers.
     pub fn with_hard_issuers_for_empty_model(
         definitions: DefinitionRegistry,
+        semantics: PrimitiveSemanticsRegistry,
         transaction_ids: CausalTransactionIdIssuer,
         event_ids: EventRecordIdIssuer,
-    ) -> Self {
+    ) -> Result<Self, RuntimeError> {
         Self::new(
             definitions,
+            semantics,
             transaction_ids,
             event_ids,
             RuntimeControlIds::new(),
@@ -78,30 +89,34 @@ impl CausalRuntime {
     /// existing model state.
     pub fn for_model(
         definitions: DefinitionRegistry,
+        semantics: PrimitiveSemanticsRegistry,
         model: &WorldModel,
     ) -> Result<Self, RuntimeError> {
-        Ok(Self::new(
+        Self::new(
             definitions,
+            semantics,
             CausalTransactionIdIssuer::new(),
             EventRecordIdIssuer::new(),
             RuntimeControlIds::from_store(model.runtime_control_store())?,
-        ))
+        )
     }
 
     /// Creates a causal runtime with explicit hard-state issuers and hydrated
     /// runtime-control issuers.
     pub fn with_hard_issuers_for_model(
         definitions: DefinitionRegistry,
+        semantics: PrimitiveSemanticsRegistry,
         transaction_ids: CausalTransactionIdIssuer,
         event_ids: EventRecordIdIssuer,
         model: &WorldModel,
     ) -> Result<Self, RuntimeError> {
-        Ok(Self::new(
+        Self::new(
             definitions,
+            semantics,
             transaction_ids,
             event_ids,
             RuntimeControlIds::from_store(model.runtime_control_store())?,
-        ))
+        )
     }
 
     /// Executes one runtime request against the model through the hard commit waist.
@@ -130,12 +145,19 @@ impl CausalRuntime {
             });
         };
 
-        if let Err(failure) = RuntimeValidator::validate(model, action, &bound, program) {
+        if let Err(failure) = RuntimeValidator::validate(
+            model,
+            action,
+            &bound,
+            program,
+            &self.definitions,
+            &self.semantics,
+        ) {
             return match failure {
-                RuntimeValidationFailure::Rejected(rejected) => {
+                PrimitiveValidationFailure::Rejected(rejected) => {
                     Ok(RuntimeOutcome::Rejected(rejected))
                 }
-                RuntimeValidationFailure::Runtime(error) => Err(error),
+                PrimitiveValidationFailure::Runtime(error) => Err(error),
             };
         }
 
@@ -166,10 +188,14 @@ impl CausalRuntime {
             let mut stager = EffectStager::new(model, &mut transaction);
             self.interpreter.interpret(
                 program,
-                &bound,
-                &mut stager,
-                &mut self.event_ids,
-                &mut self.control_ids,
+                EffectInterpretation {
+                    definitions: &self.definitions,
+                    semantics: &self.semantics,
+                    request: &bound,
+                    stager: &mut stager,
+                    event_ids: &mut self.event_ids,
+                    control_ids: &mut self.control_ids,
+                },
             )?;
         }
 

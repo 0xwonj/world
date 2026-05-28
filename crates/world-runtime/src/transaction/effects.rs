@@ -1,29 +1,50 @@
 use world_core::{EntityId, EventRecordIdIssuer, ProvenanceKey};
-use world_defs::{EffectOp, EffectProgramDef, EventRecordSpec, RoleName, StagePermission};
+use world_defs::{EffectProgramDef, EventRecordSpec, RoleName, StagePermission};
 use world_model::{EventRoleBinding, HardStateChange, RelationKey};
 
 use crate::{
     RuntimeError,
-    builtin::{BuiltinEffect, BuiltinRole},
     control::{AcquireReservationRequest, ReservationRuntime, RuntimeControlIds},
+    primitive::{PrimitiveInvocation, PrimitiveSemanticsRegistry},
     request::BoundRuntimeRequest,
     transaction::{EffectStager, PendingEventRecord},
 };
 
 pub(crate) struct TypedEffectInterpreter;
 
+pub(crate) struct EffectInterpretation<'request, 'stager, 'model, 'tx> {
+    pub(crate) definitions: &'request world_defs::DefinitionRegistry,
+    pub(crate) semantics: &'request PrimitiveSemanticsRegistry,
+    pub(crate) request: &'request BoundRuntimeRequest,
+    pub(crate) stager: &'stager mut EffectStager<'model, 'tx>,
+    pub(crate) event_ids: &'stager mut EventRecordIdIssuer,
+    pub(crate) control_ids: &'stager mut RuntimeControlIds,
+}
+
 impl TypedEffectInterpreter {
     pub(crate) fn interpret(
         &self,
         program: &EffectProgramDef,
-        request: &BoundRuntimeRequest,
-        stager: &mut EffectStager<'_, '_>,
-        event_ids: &mut EventRecordIdIssuer,
-        control_ids: &mut RuntimeControlIds,
+        input: EffectInterpretation<'_, '_, '_, '_>,
     ) -> Result<(), RuntimeError> {
-        let mut context = StageContext::new(request, stager, event_ids, control_ids);
+        let mut context = PrimitiveStageContext::new(
+            input.request,
+            input.stager,
+            input.event_ids,
+            input.control_ids,
+        );
         for operation in program.operations() {
-            BuiltinEffect::from_operation(operation)?.stage(&mut context, operation)?;
+            let Some(primitive) = input.definitions.effect_primitive(operation.primitive()) else {
+                return Err(RuntimeError::PrimitiveSemanticsForUnknownDefinition {
+                    primitive: operation.primitive(),
+                });
+            };
+            let Some(handler) = input.semantics.handler(operation.primitive()) else {
+                return Err(RuntimeError::MissingPrimitiveSemantics {
+                    primitive: operation.primitive(),
+                });
+            };
+            handler.stage(PrimitiveInvocation::new(operation, primitive), &mut context)?;
         }
 
         Ok(())
@@ -44,15 +65,16 @@ fn event_roles(
         .collect()
 }
 
-pub(crate) struct StageContext<'request, 'stager, 'model, 'tx> {
+/// Capability-gated staging context exposed to trusted primitive semantics.
+pub struct PrimitiveStageContext<'request, 'stager, 'model, 'tx> {
     request: &'request BoundRuntimeRequest,
     stager: &'stager mut EffectStager<'model, 'tx>,
     event_ids: &'stager mut EventRecordIdIssuer,
     control_ids: &'stager mut RuntimeControlIds,
 }
 
-impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx> {
-    fn new(
+impl<'request, 'stager, 'model, 'tx> PrimitiveStageContext<'request, 'stager, 'model, 'tx> {
+    pub(crate) fn new(
         request: &'request BoundRuntimeRequest,
         stager: &'stager mut EffectStager<'model, 'tx>,
         event_ids: &'stager mut EventRecordIdIssuer,
@@ -66,75 +88,88 @@ impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx
         }
     }
 
-    pub(crate) fn required_role(
+    /// Resolves a required role binding to its entity.
+    pub fn required_role_entity(
         &self,
-        role: BuiltinRole,
+        role: &RoleName,
     ) -> Result<(RoleName, EntityId), RuntimeError> {
-        let role = role.name()?;
         let entity = self
             .request
-            .bound_role_entity(&role)
+            .bound_role_entity(role)
             .ok_or_else(|| RuntimeError::MissingBoundRole { role: role.clone() })?;
-        Ok((role, entity))
+        Ok((role.clone(), entity))
     }
 
-    pub(crate) fn optional_role(
-        &self,
-        role: BuiltinRole,
-    ) -> Result<Option<EntityId>, RuntimeError> {
-        let role = role.name()?;
-        Ok(self.request.bound_role_entity(&role))
+    /// Resolves an optional role binding to its entity.
+    pub fn optional_role_entity(&self, role: &RoleName) -> Option<EntityId> {
+        self.request.bound_role_entity(role)
     }
 
-    pub(crate) const fn provenance(&self) -> Option<ProvenanceKey> {
+    /// Returns request provenance.
+    pub const fn provenance(&self) -> Option<ProvenanceKey> {
         self.request.provenance()
     }
 
-    pub(crate) const fn request_time(&self) -> world_core::SimulationTime {
+    /// Returns request submission time.
+    pub const fn request_time(&self) -> world_core::SimulationTime {
         self.request.submitted_at()
     }
 
-    pub(crate) fn contains_entity(&self, entity: EntityId) -> bool {
+    /// Returns true when an entity is committed or staged in this transaction.
+    pub fn contains_entity(&self, entity: EntityId) -> bool {
         self.stager.contains_entity(entity)
     }
 
-    pub(crate) fn contains_relation(&self, key: RelationKey) -> bool {
+    /// Returns true when a relation is committed or staged in this transaction.
+    pub fn contains_relation(&self, key: RelationKey) -> bool {
         self.stager.contains_relation(key)
     }
 
-    pub(crate) fn push_change(&mut self, change: HardStateChange) {
+    /// Stages a hard physical change after checking primitive authority.
+    pub fn stage_physical_change(
+        &mut self,
+        invocation: PrimitiveInvocation<'_>,
+        change: HardStateChange,
+    ) -> Result<(), RuntimeError> {
+        require_permission(invocation, StagePermission::MutatePhysical)?;
         self.stager.push_change(change);
+        Ok(())
     }
 
-    pub(crate) fn acquire_reservation(
+    /// Stages a reservation acquisition after checking primitive authority.
+    pub fn stage_reservation_acquire(
         &mut self,
+        invocation: PrimitiveInvocation<'_>,
         request: AcquireReservationRequest,
     ) -> Result<(), RuntimeError> {
+        require_permission(invocation, StagePermission::AcquireReservation)?;
         let change = ReservationRuntime::acquire(self.control_ids, request)?;
         self.stager.push_control_change(change);
         Ok(())
     }
 
-    pub(crate) fn emit_declared_events(
+    /// Emits every event selected by the primitive operation.
+    pub fn emit_declared_events(
         &mut self,
-        operation: &EffectOp,
+        invocation: PrimitiveInvocation<'_>,
     ) -> Result<(), RuntimeError> {
-        for spec in operation.emitted_events() {
-            self.emit_event(operation, spec)?;
+        for spec in invocation.operation().emitted_events() {
+            self.emit_event(invocation, spec)?;
         }
 
         Ok(())
     }
 
-    pub(crate) fn emit_event(
+    /// Emits a selected event after checking primitive and operation authority.
+    pub fn emit_event(
         &mut self,
-        operation: &EffectOp,
+        invocation: PrimitiveInvocation<'_>,
         spec: &EventRecordSpec,
     ) -> Result<(), RuntimeError> {
-        require_event_permission(operation)?;
-        if !operation.emits_event(spec) {
+        require_event_permission(invocation)?;
+        if !invocation.operation().emits_event(spec) {
             return Err(RuntimeError::EventNotDeclaredForOperation {
-                operation: operation.kind().clone(),
+                primitive: invocation.primitive().id(),
                 event: spec.clone(),
             });
         }
@@ -148,16 +183,34 @@ impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx
     }
 }
 
-fn require_event_permission(operation: &EffectOp) -> Result<(), RuntimeError> {
-    if operation.requires_permission(StagePermission::EmitPhysicalEventRecord)
-        || operation.requires_permission(StagePermission::EmitSensoryEventRecord)
-        || operation.emits_no_events()
+fn require_event_permission(invocation: PrimitiveInvocation<'_>) -> Result<(), RuntimeError> {
+    if invocation
+        .primitive()
+        .requires_permission(StagePermission::EmitPhysicalEventRecord)
+        || invocation
+            .primitive()
+            .requires_permission(StagePermission::EmitSensoryEventRecord)
+        || invocation.operation().emits_no_events()
     {
         Ok(())
     } else {
         Err(RuntimeError::PermissionNotDeclared {
-            operation: operation.kind().clone(),
+            primitive: invocation.primitive().id(),
             permission: StagePermission::EmitPhysicalEventRecord,
+        })
+    }
+}
+
+fn require_permission(
+    invocation: PrimitiveInvocation<'_>,
+    permission: StagePermission,
+) -> Result<(), RuntimeError> {
+    if invocation.primitive().requires_permission(permission) {
+        Ok(())
+    } else {
+        Err(RuntimeError::PermissionNotDeclared {
+            primitive: invocation.primitive().id(),
+            permission,
         })
     }
 }

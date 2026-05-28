@@ -69,7 +69,8 @@ pub struct RejectedOutcome {
 }
 
 impl RejectedOutcome {
-    pub(crate) const fn new(action: DefinitionId, reason: RejectionReason) -> Self {
+    /// Creates a request rejection outcome.
+    pub const fn new(action: DefinitionId, reason: RejectionReason) -> Self {
         Self { action, reason }
     }
 

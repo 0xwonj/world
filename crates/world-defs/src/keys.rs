@@ -81,6 +81,11 @@ string_key!(
 );
 
 string_key!(
+    /// Checked primitive parameter name.
+    EffectParamName
+);
+
+string_key!(
     /// Checked event record family name.
     EventKind
 );

@@ -1,15 +1,15 @@
 use std::collections::BTreeSet;
 
 use world_core::{DefinitionId, EntityId};
-use world_defs::{ActionDef, EffectProgramDef, RoleName};
+use world_defs::{ActionDef, DefinitionRegistry, EffectProgramDef, RoleName};
 use world_model::{
     RelationKey, ReservationState, ReservationTarget, RuntimeControlRecordPayload, WorldModel,
 };
 
 use crate::{
     RuntimeError,
-    builtin::{BuiltinEffect, BuiltinRole},
     outcome::{RejectedOutcome, RejectionReason},
+    primitive::{PrimitiveInvocation, PrimitiveSemanticsRegistry, PrimitiveValidationFailure},
     request::BoundRuntimeRequest,
 };
 
@@ -21,36 +21,33 @@ impl RuntimeValidator {
         action: &ActionDef,
         request: &BoundRuntimeRequest,
         program: &EffectProgramDef,
-    ) -> Result<(), RuntimeValidationFailure> {
+        definitions: &DefinitionRegistry,
+        semantics: &PrimitiveSemanticsRegistry,
+    ) -> Result<(), PrimitiveValidationFailure> {
         reject_unsupported_declarations(action)?;
-        validate_actor_binding(action.id(), request)?;
-        let mut context = ValidationContext::new(model, action.id(), request);
+        validate_actor_binding(action, request)?;
+        let mut context = PrimitiveValidationContext::new(model, action.id(), request);
         for operation in program.operations() {
-            BuiltinEffect::from_operation(operation)?.validate(&mut context, operation)?;
+            let Some(primitive) = definitions.effect_primitive(operation.primitive()) else {
+                return Err(RuntimeError::PrimitiveSemanticsForUnknownDefinition {
+                    primitive: operation.primitive(),
+                }
+                .into());
+            };
+            let Some(handler) = semantics.handler(operation.primitive()) else {
+                return Err(RuntimeError::MissingPrimitiveSemantics {
+                    primitive: operation.primitive(),
+                }
+                .into());
+            };
+            handler.validate(PrimitiveInvocation::new(operation, primitive), &mut context)?;
         }
 
         Ok(())
     }
 }
 
-pub(crate) enum RuntimeValidationFailure {
-    Rejected(RejectedOutcome),
-    Runtime(RuntimeError),
-}
-
-impl From<RejectedOutcome> for RuntimeValidationFailure {
-    fn from(value: RejectedOutcome) -> Self {
-        Self::Rejected(value)
-    }
-}
-
-impl From<RuntimeError> for RuntimeValidationFailure {
-    fn from(value: RuntimeError) -> Self {
-        Self::Runtime(value)
-    }
-}
-
-fn reject_unsupported_declarations(action: &ActionDef) -> Result<(), RuntimeValidationFailure> {
+fn reject_unsupported_declarations(action: &ActionDef) -> Result<(), PrimitiveValidationFailure> {
     if let Some(requirement) = action.requirements().first() {
         return Err(RejectedOutcome::new(
             action.id(),
@@ -75,20 +72,22 @@ fn reject_unsupported_declarations(action: &ActionDef) -> Result<(), RuntimeVali
 }
 
 fn validate_actor_binding(
-    action: DefinitionId,
+    action: &ActionDef,
     request: &BoundRuntimeRequest,
-) -> Result<(), RuntimeValidationFailure> {
+) -> Result<(), PrimitiveValidationFailure> {
     let Some(actor) = request.actor() else {
         return Ok(());
     };
-    let actor_role = BuiltinRole::Actor.name()?;
-    let Some(bound_actor) = request.bound_role_entity(&actor_role) else {
+    let Some(actor_role) = action.actor_role() else {
+        return Ok(());
+    };
+    let Some(bound_actor) = request.bound_role_entity(actor_role) else {
         return Ok(());
     };
 
     if actor != bound_actor {
         return Err(RejectedOutcome::new(
-            action,
+            action.id(),
             RejectionReason::ActorRoleMismatch { actor, bound_actor },
         )
         .into());
@@ -97,7 +96,8 @@ fn validate_actor_binding(
     Ok(())
 }
 
-pub(crate) struct ValidationContext<'model> {
+/// Current-world validation context exposed to trusted primitive semantics.
+pub struct PrimitiveValidationContext<'model> {
     action: DefinitionId,
     request: &'model BoundRuntimeRequest,
     model: &'model WorldModel,
@@ -106,8 +106,8 @@ pub(crate) struct ValidationContext<'model> {
     reservation_targets: BTreeSet<ReservationTarget>,
 }
 
-impl<'model> ValidationContext<'model> {
-    fn new(
+impl<'model> PrimitiveValidationContext<'model> {
+    pub(crate) fn new(
         model: &'model WorldModel,
         action: DefinitionId,
         request: &'model BoundRuntimeRequest,
@@ -122,43 +122,49 @@ impl<'model> ValidationContext<'model> {
         }
     }
 
-    pub(crate) const fn action(&self) -> DefinitionId {
+    /// Returns the action currently being validated.
+    pub const fn action(&self) -> DefinitionId {
         self.action
     }
 
-    pub(crate) fn required_role(
+    /// Resolves a required role binding to its entity.
+    pub fn required_role_entity(
         &self,
-        role: BuiltinRole,
-    ) -> Result<(RoleName, EntityId), RuntimeValidationFailure> {
-        let role = role.name()?;
-        let Some(entity) = self.request.bound_role_entity(&role) else {
+        role: &RoleName,
+    ) -> Result<(RoleName, EntityId), PrimitiveValidationFailure> {
+        let Some(entity) = self.request.bound_role_entity(role) else {
             return Err(RejectedOutcome::new(
                 self.action,
-                RejectionReason::MissingRoleBinding { role },
+                RejectionReason::MissingRoleBinding { role: role.clone() },
             )
             .into());
         };
 
-        Ok((role, entity))
+        Ok((role.clone(), entity))
     }
 
-    pub(crate) fn contains_entity(&self, entity: EntityId) -> bool {
+    /// Returns true when an entity is committed or staged by earlier validation.
+    pub fn contains_entity(&self, entity: EntityId) -> bool {
         self.entities.contains(&entity) || self.model.world_store().contains_entity(entity)
     }
 
-    pub(crate) fn insert_entity(&mut self, entity: EntityId) {
+    /// Marks an entity as staged by validation for later operation visibility.
+    pub fn insert_entity(&mut self, entity: EntityId) {
         self.entities.insert(entity);
     }
 
-    pub(crate) fn contains_relation(&self, relation: RelationKey) -> bool {
+    /// Returns true when a relation is committed or staged by earlier validation.
+    pub fn contains_relation(&self, relation: RelationKey) -> bool {
         self.relations.contains(&relation) || self.model.relation_store().contains(relation)
     }
 
-    pub(crate) fn insert_relation(&mut self, relation: RelationKey) {
+    /// Marks a relation as staged by validation for later operation visibility.
+    pub fn insert_relation(&mut self, relation: RelationKey) {
         self.relations.insert(relation);
     }
 
-    pub(crate) fn contains_active_reservation(&self, target: &ReservationTarget) -> bool {
+    /// Returns true when a reservation target is already held or staged as held.
+    pub fn contains_active_reservation(&self, target: &ReservationTarget) -> bool {
         self.reservation_targets.contains(target)
             || self.model.runtime_control_store().records().any(|record| {
                 let RuntimeControlRecordPayload::Reservation(reservation) = record.payload() else {
@@ -169,7 +175,8 @@ impl<'model> ValidationContext<'model> {
             })
     }
 
-    pub(crate) fn insert_reservation_target(&mut self, target: ReservationTarget) {
+    /// Marks a reservation target as staged by validation.
+    pub fn insert_reservation_target(&mut self, target: ReservationTarget) {
         self.reservation_targets.insert(target);
     }
 }

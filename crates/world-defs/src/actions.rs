@@ -5,7 +5,7 @@ use world_core::{DefinitionId, VersionAnchor};
 use crate::effects::StagePermission;
 use crate::error::{DefinitionError, empty_definition_field};
 use crate::events::EventContract;
-use crate::keys::DefinitionName;
+use crate::keys::{DefinitionName, RoleName};
 use crate::roles::{
     BindingRuleDef, RequirementDef, RoleDef, declared_role_names, ensure_unique_roles,
     validate_role_refs,
@@ -17,6 +17,7 @@ pub struct ActionDef {
     id: DefinitionId,
     name: DefinitionName,
     roles: Vec<RoleDef>,
+    actor_role: Option<RoleName>,
     requirements: Vec<RequirementDef>,
     binding_rules: Vec<BindingRuleDef>,
     effect_program: DefinitionId,
@@ -69,6 +70,7 @@ impl ActionDef {
             id,
             name,
             roles,
+            actor_role: None,
             requirements,
             binding_rules,
             effect_program,
@@ -76,6 +78,14 @@ impl ActionDef {
             stage_permissions,
             version,
         })
+    }
+
+    /// Marks one declared role as the actor identity checked against request actor metadata.
+    pub fn with_actor_role(mut self, actor_role: RoleName) -> Result<Self, DefinitionError> {
+        let role_names = declared_role_names(&self.roles);
+        validate_role_refs(self.id, &role_names, std::iter::once(&actor_role))?;
+        self.actor_role = Some(actor_role);
+        Ok(self)
     }
 
     /// Returns the definition id.
@@ -91,6 +101,11 @@ impl ActionDef {
     /// Returns declared roles.
     pub fn roles(&self) -> &[RoleDef] {
         &self.roles
+    }
+
+    /// Returns the role that carries the request actor identity, when declared.
+    pub fn actor_role(&self) -> Option<&RoleName> {
+        self.actor_role.as_ref()
     }
 
     /// Returns declared requirements.

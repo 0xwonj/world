@@ -8,7 +8,7 @@ fn reservation_acquire_effect_commits_through_execute_atomically() {
     seed_entities(&mut model, 100, &[entity(1), entity(2), entity(3)]);
     let baseline = EventHistoryCounts::capture(&model);
 
-    let outcome = must_ok(runtime.execute(&mut model, transfer_request()));
+    let outcome = must_ok(runtime.execute(&mut model, place_request()));
 
     let RuntimeOutcome::Committed(committed) = outcome else {
         panic!("reservation request should commit");
@@ -25,7 +25,7 @@ fn reservation_acquire_effect_commits_through_execute_atomically() {
         }
     );
 
-    let duplicate = must_ok(runtime.execute(&mut model, transfer_request()));
+    let duplicate = must_ok(runtime.execute(&mut model, place_request()));
     assert_eq!(
         duplicate,
         RuntimeOutcome::Rejected(RejectedOutcome::new(

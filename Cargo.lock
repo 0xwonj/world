@@ -126,3 +126,22 @@ dependencies = [
  "world-defs",
  "world-model",
 ]
+
+[[package]]
+name = "world-standard"
+version = "0.0.0"
+dependencies = [
+ "world-core",
+ "world-defs",
+]
+
+[[package]]
+name = "world-standard-runtime"
+version = "0.0.0"
+dependencies = [
+ "world-core",
+ "world-defs",
+ "world-model",
+ "world-runtime",
+ "world-standard",
+]

@@ -1,17 +1,22 @@
 use super::helpers::*;
 use super::*;
+use crate::{
+    control::{AcquireReservationRequest, RuntimeControlIds},
+    transaction::{EffectStager, PrimitiveStageContext},
+};
+use world_model::ReservationHolder;
 
 #[test]
-fn causal_runtime_commits_minimal_transfer_through_model_receiver() {
-    let mut runtime = runtime(transfer_registry());
+fn causal_runtime_commits_minimal_place_through_model_receiver() {
+    let mut runtime = runtime(place_registry());
     let mut model = WorldModel::new();
     seed_entities(&mut model, 100, &[entity(1), entity(2), entity(3)]);
     let baseline = EventHistoryCounts::capture(&model);
 
-    let outcome = must_ok(runtime.execute(&mut model, transfer_request()));
+    let outcome = must_ok(runtime.execute(&mut model, place_request()));
 
     let RuntimeOutcome::Committed(committed) = outcome else {
-        panic!("transfer request should commit");
+        panic!("place request should commit");
     };
     assert_eq!(committed.transaction().get(), 1);
     assert_eq!(
@@ -49,14 +54,14 @@ fn causal_runtime_commits_minimal_transfer_through_model_receiver() {
 
 #[test]
 fn staged_effect_reads_see_prior_changes_in_the_same_transaction() {
-    let mut runtime = runtime(insert_then_transfer_registry());
+    let mut runtime = runtime(insert_then_place_registry());
     let mut model = WorldModel::new();
     seed_entities(&mut model, 100, &[entity(1), entity(3)]);
 
-    let outcome = must_ok(runtime.execute(&mut model, insert_then_transfer_request()));
+    let outcome = must_ok(runtime.execute(&mut model, insert_then_place_request()));
 
     let RuntimeOutcome::Committed(committed) = outcome else {
-        panic!("insert-then-transfer request should commit");
+        panic!("insert-then-place request should commit");
     };
     assert_eq!(committed.events().len(), 2);
     assert!(model.world_store().contains_entity(entity(2)));
@@ -69,7 +74,7 @@ fn staged_effect_reads_see_prior_changes_in_the_same_transaction() {
 
 #[test]
 fn unknown_action_rejects_without_mutating_model() {
-    let mut runtime = runtime(transfer_registry());
+    let mut runtime = runtime(place_registry());
     let mut model = WorldModel::new();
     let request = RuntimeRequest::new(
         RequestSource::Player,
@@ -96,7 +101,7 @@ fn unknown_action_rejects_without_mutating_model() {
 
 #[test]
 fn missing_role_rejects_without_mutating_model() {
-    let mut runtime = runtime(transfer_registry());
+    let mut runtime = runtime(place_registry());
     let mut model = WorldModel::new();
     let request = RuntimeRequest::new(
         RequestSource::Player,
@@ -123,12 +128,12 @@ fn missing_role_rejects_without_mutating_model() {
 
 #[test]
 fn missing_visible_entity_rejects_without_issuing_commit() {
-    let mut runtime = runtime(transfer_registry());
+    let mut runtime = runtime(place_registry());
     let mut model = WorldModel::new();
     seed_entities(&mut model, 100, &[entity(1), entity(3)]);
     let baseline = EventHistoryCounts::capture(&model);
 
-    let outcome = must_ok(runtime.execute(&mut model, transfer_request()));
+    let outcome = must_ok(runtime.execute(&mut model, place_request()));
 
     assert_eq!(
         outcome,
@@ -144,104 +149,154 @@ fn missing_visible_entity_rejects_without_issuing_commit() {
 }
 
 #[test]
-fn undeclared_handler_permission_fails_before_model_application() {
-    let mut runtime = runtime(registry(
-        transfer_program(
-            "transfer_entity",
-            vec![StagePermission::EmitPhysicalEventRecord],
-        ),
-        transfer_action(vec![StagePermission::EmitPhysicalEventRecord]),
-    ));
-    let mut model = WorldModel::new();
-    seed_entities(&mut model, 100, &[entity(1), entity(2), entity(3)]);
-    let baseline = EventHistoryCounts::capture(&model);
+fn semantics_registry_rejects_duplicate_handlers() {
+    let mut builder = PrimitiveSemanticsRegistryBuilder::new();
+    if let Err(error) = builder.add_handler(TestPlaceEntity) {
+        panic!("first handler should install: {error}");
+    }
 
     assert_eq!(
-        runtime.execute(&mut model, transfer_request()),
-        Err(RuntimeError::PermissionNotDeclared {
-            operation: effect_kind("transfer_entity"),
-            permission: StagePermission::MutatePhysical,
+        builder.add_handler(TestPlaceEntity).map(|_| ()),
+        Err(RuntimeError::DuplicatePrimitiveSemantics {
+            primitive: primitive_id(PRIMITIVE_PLACE_ENTITY),
         })
     );
-    baseline.assert_unchanged(&model);
-    assert!(model.relation_store().is_empty());
 }
 
 #[test]
-fn missing_effect_handler_fails_before_model_application() {
-    let mut runtime = runtime(registry(
-        transfer_program(
-            "unknown_effect",
-            vec![
-                StagePermission::MutatePhysical,
-                StagePermission::EmitPhysicalEventRecord,
-            ],
-        ),
-        transfer_action(vec![
+fn semantics_registry_rejects_unknown_and_mismatched_handlers() {
+    let mut unknown = PrimitiveSemanticsRegistryBuilder::new();
+    if let Err(error) = unknown.add_handler(TestPlaceEntity) {
+        panic!("handler should install before definition matching: {error}");
+    }
+    assert_eq!(
+        unknown.build_against(&empty_registry()).map(|_| ()),
+        Err(RuntimeError::PrimitiveSemanticsForUnknownDefinition {
+            primitive: primitive_id(PRIMITIVE_PLACE_ENTITY),
+        })
+    );
+
+    let definitions = place_registry();
+    let mut mismatched = PrimitiveSemanticsRegistryBuilder::new();
+    if let Err(error) = mismatched.add_handler(MismatchedPlaceEntity) {
+        panic!("mismatched handler should install before definition matching: {error}");
+    }
+    assert_eq!(
+        mismatched.build_against(&definitions).map(|_| ()),
+        Err(RuntimeError::PrimitiveSemanticsContractMismatch {
+            primitive: primitive_id(PRIMITIVE_PLACE_ENTITY),
+            field: "params",
+        })
+    );
+}
+
+#[test]
+fn reservation_staging_requires_declared_capability() {
+    let weak_primitive = primitive_def(
+        PRIMITIVE_ACQUIRE_RESERVATION,
+        "weak_reservation",
+        [EffectParamDef::new(
+            param_name("item"),
+            EffectParamKind::EntityRole,
+        )],
+        [StagePermission::Validate],
+        EventContract::default(),
+    );
+    let operation = op(weak_primitive.id(), [arg("item", "item")], []);
+    let transaction_id = transaction(1);
+    let mut transaction_builder = CausalTransactionBuilder::new(
+        CausalTransactionHeader {
+            id: transaction_id,
+            source: RequestSource::Tooling,
+            cause: TransactionCause::Action {
+                action: definition(2),
+                effect_program: definition(1),
+            },
+            occurred_at: SimulationTime::ZERO,
+            replay_level: ReplayLevel::AuditOnly,
+            provenance: None,
+        },
+        InvalidationPackage::new(InvalidationSource::HardCommit(transaction_id)),
+    );
+    let model = WorldModel::new();
+    let action = place_action(vec![StagePermission::Validate]);
+    let Ok(bound) = place_request().bind(&action) else {
+        panic!("test request must bind");
+    };
+
+    {
+        let mut stager = EffectStager::new(&model, &mut transaction_builder);
+        let mut event_ids = EventRecordIdIssuer::new();
+        let mut control_ids = RuntimeControlIds::new();
+        let mut context =
+            PrimitiveStageContext::new(&bound, &mut stager, &mut event_ids, &mut control_ids);
+
+        assert_eq!(
+            context.stage_reservation_acquire(
+                PrimitiveInvocation::new(&operation, &weak_primitive),
+                AcquireReservationRequest::new(
+                    ReservationHolder::Runtime,
+                    ReservationTarget::Entity(entity(2)),
+                    SimulationTime::ZERO,
+                    None,
+                ),
+            ),
+            Err(RuntimeError::PermissionNotDeclared {
+                primitive: weak_primitive.id(),
+                permission: StagePermission::AcquireReservation,
+            })
+        );
+    }
+
+    assert!(transaction_builder.into_parts().control_changes.is_empty());
+}
+
+#[test]
+fn missing_action_semantics_fails_registry_build() {
+    let definitions = registry(
+        unknown_semantics_primitive(),
+        place_program(primitive_id(PRIMITIVE_UNKNOWN_SEMANTICS)),
+        place_action(vec![
+            StagePermission::ReadWorld,
             StagePermission::MutatePhysical,
             StagePermission::EmitPhysicalEventRecord,
         ]),
-    ));
-    let mut model = WorldModel::new();
+    );
 
     assert_eq!(
-        runtime.execute(&mut model, transfer_request()),
-        Err(RuntimeError::MissingEffectHandler {
-            kind: effect_kind("unknown_effect"),
+        PrimitiveSemanticsRegistryBuilder::new()
+            .build_against(&definitions)
+            .map(|_| ()),
+        Err(RuntimeError::MissingPrimitiveSemantics {
+            primitive: primitive_id(PRIMITIVE_UNKNOWN_SEMANTICS),
         })
     );
-    assert!(model.event_history().is_empty());
-    assert!(model.relation_store().is_empty());
 }
 
 #[test]
-fn missing_effect_handler_fails_before_transaction_id_is_issued() {
-    let permissions = vec![
-        StagePermission::MutatePhysical,
-        StagePermission::EmitPhysicalEventRecord,
-    ];
-    let Ok(definitions) = DefinitionRegistry::new(
-        [
-            transfer_program_with_id(1, "unknown_effect", permissions.clone()),
-            transfer_program_with_id(3, "transfer_entity", permissions.clone()),
-        ],
-        [
-            transfer_action_with_ids(2, 1, permissions.clone()),
-            transfer_action_with_ids(4, 3, permissions),
-        ],
-        [],
-        [],
-    ) else {
-        panic!("test registry must be valid");
-    };
-    let mut runtime = runtime(definitions);
-    let mut model = WorldModel::new();
-    seed_entities(&mut model, 100, &[entity(1), entity(2), entity(3)]);
+fn process_definition_programs_do_not_require_action_semantics() {
+    let definitions = process_registry();
 
-    assert_eq!(
-        runtime.execute(&mut model, transfer_request()),
-        Err(RuntimeError::MissingEffectHandler {
-            kind: effect_kind("unknown_effect"),
-        })
+    let Ok(registry) = PrimitiveSemanticsRegistry::empty_checked(&definitions) else {
+        panic!("process-only definitions should not require action primitive handlers");
+    };
+    assert!(
+        registry
+            .handler(primitive_id(PRIMITIVE_SCHEDULE_PROCESS))
+            .is_none()
     );
-
-    let outcome = must_ok(runtime.execute(&mut model, transfer_request_for(4)));
-    let RuntimeOutcome::Committed(committed) = outcome else {
-        panic!("valid transfer should still commit");
-    };
-    assert_eq!(committed.transaction().get(), 1);
 }
 
 #[test]
 fn duplicate_relation_rejects_before_commit_application() {
-    let mut runtime = runtime(transfer_registry());
+    let mut runtime = runtime(place_registry());
     let mut model = WorldModel::new();
     seed_entities(&mut model, 100, &[entity(1), entity(2), entity(3)]);
-    must_ok(runtime.execute(&mut model, transfer_request()));
+    must_ok(runtime.execute(&mut model, place_request()));
     let baseline = EventHistoryCounts::capture(&model);
 
     assert_eq!(
-        runtime.execute(&mut model, transfer_request()),
+        runtime.execute(&mut model, place_request()),
         Ok(RuntimeOutcome::Rejected(RejectedOutcome::new(
             definition(2),
             RejectionReason::RelationAlreadyPresent {
@@ -256,7 +311,7 @@ fn duplicate_relation_rejects_before_commit_application() {
 
 #[test]
 fn finalizer_rejects_missing_required_event_before_model_application() {
-    let registry = transfer_registry();
+    let registry = place_registry();
     let Some(program) = registry.effect_program(definition(1)) else {
         panic!("test program must exist");
     };
@@ -314,4 +369,43 @@ fn process_tick_finalizer_requires_process_tick_cause() {
         CommitFinalizer::finalize_eventless_process_tick(transaction),
         Err(RuntimeError::InvalidProcessTransactionCause { cause })
     );
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct MismatchedPlaceEntity;
+
+impl PrimitiveSemantics for MismatchedPlaceEntity {
+    fn primitive(&self) -> EffectPrimitiveId {
+        primitive_id(PRIMITIVE_PLACE_ENTITY)
+    }
+
+    fn contract(&self) -> PrimitiveSemanticsContract {
+        PrimitiveSemanticsContract::new(
+            [],
+            [
+                StagePermission::ReadWorld,
+                StagePermission::MutatePhysical,
+                StagePermission::EmitPhysicalEventRecord,
+            ],
+            EventContract::new([event_spec()]),
+            ReplayLevel::EventRebuild,
+            version(1),
+        )
+    }
+
+    fn validate(
+        &self,
+        _invocation: PrimitiveInvocation<'_>,
+        _context: &mut PrimitiveValidationContext<'_>,
+    ) -> Result<(), PrimitiveValidationFailure> {
+        unreachable!("mismatched handler should never execute")
+    }
+
+    fn stage(
+        &self,
+        _invocation: PrimitiveInvocation<'_>,
+        _context: &mut PrimitiveStageContext<'_, '_, '_, '_>,
+    ) -> Result<(), RuntimeError> {
+        unreachable!("mismatched handler should never execute")
+    }
 }

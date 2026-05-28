@@ -8,6 +8,8 @@ members = [
     "crates/world-engine",
     "crates/world-model",
     "crates/world-runtime",
+    "crates/world-standard",
+    "crates/world-standard-runtime",
 ]
 resolver = "3"
 

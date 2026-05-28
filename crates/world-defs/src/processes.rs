@@ -61,6 +61,9 @@ impl ResolutionSupport {
     }
 
     /// Returns effect programs legal for this process resolution tier.
+    ///
+    /// Process programs are checked as definitions here; executable process-program
+    /// semantics are supplied by a later runtime path, not by action primitive handlers.
     pub fn effect_programs(&self) -> impl Iterator<Item = &DefinitionId> {
         self.effect_programs.iter()
     }
