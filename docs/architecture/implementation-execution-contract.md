@@ -99,25 +99,31 @@ These boundaries must be preserved in code, not only in documentation.
 
 ## Public API Guardrails
 
-Early Rust code must use visibility to enforce authority.
+Early Rust code must use visibility to enforce authority where Rust can
+represent the boundary, and must document and test unavoidable cross-crate
+authority exceptions.
 
 - Do not expose public constructors, public fields, or public enum variants that
-  allow downstream crates to forge committed hard-state packages.
+  allow downstream crates to forge committed hard-state packages unless the
+  constructor is an explicit accepted-package boundary for another engine crate.
 - Do not expose public constructors, public fields, or public enum variants that
-  allow downstream crates to forge accepted runtime-control updates.
+  allow downstream crates to forge accepted runtime-control updates unless the
+  constructor is an explicit accepted-package boundary for another engine crate.
 - If a type has invariants, prefer private fields plus constructors and
   accessors.
 - Cross-crate authority cannot rely on friend visibility. If one crate should be
   the intended producer of a value consumed by another crate, enforce as much as
   Rust allows with private fields, narrow constructors, and higher-level facade
-  ownership instead of exposing broad public constructors.
-- `world-model` may own storage and later atomic application of accepted
-  updates, but it must not expose arbitrary hard mutation packages to general
-  callers.
-- Until Phase 4/5 accepted package boundaries exist, `world-model` public APIs
-  should be read-first: model creation, read-only stores, read labels, query
-  surfaces, and accessors. Do not fill the gap with public committed,
-  runtime-control, or accepted-record constructors.
+  ownership. If a public constructor is unavoidable because the producer lives
+  in another crate, add rustdoc that names the intended producer and protect the
+  call surface with source allowlist tests.
+- `world-model` may own storage and atomic application of accepted updates, but
+  model receiver methods are not a general mutation authority. They should
+  validate accepted-package shape and storage invariants before mutation.
+- `world-model` public APIs should remain read-first outside accepted-package
+  receiver methods: model creation, read-only stores, read labels, query
+  surfaces, and accessors. Do not add direct store mutators as a substitute for
+  runtime authority.
 - `world-runtime` may interpret checked definitions and produce accepted
   transaction or runtime-control outputs through narrow APIs.
 - Effect handlers should receive staging capabilities, not raw store mutation

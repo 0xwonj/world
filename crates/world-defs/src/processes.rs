@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use world_core::{DefinitionId, VersionAnchor};
 
 use crate::effects::StagePermission;
-use crate::error::{DefinitionError, require_not_empty};
+use crate::error::{DefinitionError, empty_definition_field};
 use crate::events::EventContract;
 use crate::keys::{DefinitionName, PolicyKey, StateFieldName, StateValueType};
 use crate::roles::{RoleDef, declared_role_names, ensure_unique_roles, validate_role_refs};
@@ -203,15 +203,29 @@ impl ProcessDef {
         version: VersionAnchor,
     ) -> Result<Self, DefinitionError> {
         let roles = roles.into_iter().collect::<Vec<_>>();
-        require_not_empty(id, "ProcessDef", "roles", &roles)?;
+        if roles.is_empty() {
+            return Err(empty_definition_field(id, "ProcessDef", "roles"));
+        }
         ensure_unique_roles(id, &roles)?;
         validate_role_refs(id, &declared_role_names(&roles), event_contract.role_refs())?;
 
         let resolution_support = collect_resolution_support(id, resolution_support)?;
-        require_not_empty(id, "ProcessDef", "resolution_support", &resolution_support)?;
+        if resolution_support.is_empty() {
+            return Err(empty_definition_field(
+                id,
+                "ProcessDef",
+                "resolution_support",
+            ));
+        }
 
         let stage_permissions = stage_permissions.into_iter().collect::<BTreeSet<_>>();
-        require_not_empty(id, "ProcessDef", "stage_permissions", &stage_permissions)?;
+        if stage_permissions.is_empty() {
+            return Err(empty_definition_field(
+                id,
+                "ProcessDef",
+                "stage_permissions",
+            ));
+        }
 
         Ok(Self {
             id,

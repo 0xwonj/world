@@ -84,6 +84,14 @@ fn event_with_version(
     event
 }
 
+#[test]
+fn event_record_spec_display_includes_version_and_role_shape() {
+    assert_eq!(
+        event_with_version("EntityTransferred", ["item", "actor", "destination"], 7).to_string(),
+        "EntityTransferred@7(actor,destination,item)"
+    );
+}
+
 fn state_schema() -> ProcessStateSchema {
     let Ok(schema) = ProcessStateSchema::new([ProcessStateField::new(
         state_field_name("progress"),
@@ -212,6 +220,17 @@ fn string_keys_reject_blank_values() {
     assert_eq!(
         RoleName::new(" actor ").map(|name| name.to_string()),
         Some("actor".to_owned())
+    );
+    let Ok(role) = RoleName::try_from(" actor ") else {
+        panic!("trimmed key should be valid");
+    };
+    assert_eq!(role.as_ref(), "actor");
+    assert_eq!(
+        DefinitionName::try_from(" "),
+        Err(DefinitionError::EmptyItemField {
+            type_name: "DefinitionName",
+            field: "value",
+        })
     );
     assert_eq!(DefinitionName::new(" "), None);
 }

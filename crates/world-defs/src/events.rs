@@ -55,7 +55,14 @@ impl EventRecordSpec {
 
 impl fmt::Display for EventRecordSpec {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}@{}", self.kind, self.version.get())
+        write!(formatter, "{}@{}(", self.kind, self.version.get())?;
+        for (index, role) in self.roles.iter().enumerate() {
+            if index > 0 {
+                formatter.write_str(",")?;
+            }
+            write!(formatter, "{role}")?;
+        }
+        formatter.write_str(")")
     }
 }
 

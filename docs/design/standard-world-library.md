@@ -203,7 +203,7 @@ semantics = PrimitiveSemanticsRegistry::new()
 world_standard::install_definitions(definitions)
 world_standard_runtime::install_semantics(semantics)
 
-runtime = CausalRuntime::new(definitions.build(), semantics)
+runtime = CausalRuntime::for_empty_model(definitions.build())
 ```
 
 The exact Rust API names are implementation details. The architecture point is

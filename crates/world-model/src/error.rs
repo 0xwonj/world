@@ -1,7 +1,10 @@
 use thiserror::Error;
-use world_core::{AuthorityClass, CausalTransactionId, EntityId, EventRecordId};
+use world_core::{
+    AuthorityClass, CausalTransactionId, EntityId, EventRecordId, ReservationId, ScheduledWakeupId,
+};
 use world_defs::RoleName;
 
+use crate::runtime_control::ReservationTarget;
 use crate::{
     AcceptedRecordId, DerivedViewKey, InvalidationSource, RelationFamily, RuntimeControlRecordKind,
     StoreFamily,
@@ -121,6 +124,62 @@ pub enum ModelError {
         /// Duplicated runtime-control record key.
         kind: RuntimeControlRecordKind,
     },
+    /// A runtime-control record was required but missing.
+    #[error("runtime-control record {kind:?} is missing")]
+    MissingRuntimeControlRecord {
+        /// Missing runtime-control record key.
+        kind: RuntimeControlRecordKind,
+    },
+    /// A runtime-control update carried an invalidation source for another authority path.
+    #[error("runtime-control update cannot use invalidation source {invalidation_source:?}")]
+    InvalidRuntimeControlInvalidation {
+        /// Invalid invalidation source.
+        invalidation_source: InvalidationSource,
+    },
+    /// A runtime-control update did not mark a required changed authority class.
+    #[error("runtime-control update did not invalidate changed authority {authority:?}")]
+    MissingRuntimeControlAuthorityInvalidation {
+        /// Missing authority class.
+        authority: AuthorityClass,
+    },
+    /// A runtime-control update did not mark a required changed store family.
+    #[error("runtime-control update did not invalidate changed store {store:?}")]
+    MissingRuntimeControlStoreInvalidation {
+        /// Missing store family.
+        store: StoreFamily,
+    },
+    /// A scheduled wakeup cannot transition from its current state.
+    #[error("scheduled wakeup {} cannot transition from its current state", .wakeup.get())]
+    InvalidWakeupTransition {
+        /// Wakeup being transitioned.
+        wakeup: ScheduledWakeupId,
+    },
+    /// A process cannot transition from its current runtime-control state.
+    #[error("process {} cannot transition from its current runtime-control state", .process.get())]
+    InvalidProcessTransition {
+        /// Process being transitioned.
+        process: world_core::ProcessInstanceId,
+    },
+    /// A reservation cannot transition from its current runtime-control state.
+    #[error("reservation {} cannot transition from its current runtime-control state", .reservation.get())]
+    InvalidReservationTransition {
+        /// Reservation being transitioned.
+        reservation: ReservationId,
+    },
+    /// A reservation target already has an active exclusive reservation.
+    #[error(
+        "reservation target {target:?} is already held by reservation {}",
+        .reservation.get()
+    )]
+    DuplicateActiveReservation {
+        /// Existing active reservation.
+        reservation: ReservationId,
+        /// Target that is already held.
+        target: ReservationTarget,
+    },
+    /// A runtime-control arithmetic value overflowed.
+    #[error("runtime-control value overflowed")]
+    RuntimeControlValueOverflow,
     /// An accepted record id is already present in its store.
     #[error("accepted record {} is already present", .record.get())]
     DuplicateAcceptedRecord {

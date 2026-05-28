@@ -143,3 +143,38 @@ definition bundles and trusted semantics installers. Ordinary game-system
 packs compose installed primitives through checked `Typed Effect Program`s;
 future primitive extensions are trusted engine extensions, not arbitrary pack
 scripts.
+
+## ADR-007: Accepted Package Authority Under Current Crate Split
+
+Decision:
+
+Keep `world-model` and `world-runtime` as separate crates. `world-model` owns
+materialized stores, accepted package types, model-side verifier checks, and
+the receiver methods that apply accepted packages. `world-runtime` remains the
+normal producer of `AcceptedHardCommit` and `AcceptedRuntimeControlUpdate`.
+
+Because Rust has no friend-crate visibility, a value that lives in
+`world-model` and is constructed by `world-runtime` cannot be made
+constructible only by `world-runtime` without changing crate boundaries. The
+current implementation therefore treats accepted-package constructors as
+runtime-authority constructors by convention, rustdoc, verifier checks, facade
+ownership, and source allowlist tests rather than as an absolute external
+compile-time security boundary.
+
+Reason:
+
+The crate split is logically correct: storage and query receivers belong in
+`world-model`, while transaction, scheduler, process, and effect authority
+belong in `world-runtime`. Collapsing them only to hide constructors would make
+the conceptual boundary less clear and would move the design away from the
+long-term crate graph.
+
+Consequence:
+
+General game-system, standard-library, authoring, and decision code must not
+construct accepted packages or call model receiver methods directly. They
+compose checked definitions and typed effect programs that execute through the
+runtime facade. If strict external forge prevention becomes necessary for
+untrusted extension packages, revisit the crate architecture with a dedicated
+kernel/facade/capability boundary instead of treating the current public
+constructors as a complete security mechanism.

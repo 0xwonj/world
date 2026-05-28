@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 
 use world_core::{
-    CausalTransactionId, DefinitionId, EntityId, EventRecordId, ProvenanceKey, ReplayLevel,
+    AuthorityClass, CausalTransactionId, EntityId, EventRecordId, ProvenanceKey, ReplayLevel,
     SimulationTime,
 };
 use world_defs::EventRecordSpec;
 use world_model::{
-    EventRoleBinding, HardStateChange, InvalidationPackage, RelationKey, WorldModel,
+    EventRoleBinding, HardStateChange, InvalidationPackage, RelationKey, RuntimeControlChange,
+    StoreFamily, TransactionCause, WorldModel,
 };
 
 use crate::{RequestSource, RuntimeError};
@@ -15,12 +16,12 @@ use crate::{RequestSource, RuntimeError};
 pub(crate) struct CausalTransactionBuilder {
     id: CausalTransactionId,
     source: RequestSource,
-    action: DefinitionId,
-    effect_program: DefinitionId,
+    cause: TransactionCause,
     occurred_at: SimulationTime,
     replay_level: ReplayLevel,
     provenance: Option<ProvenanceKey>,
     changes: Vec<HardStateChange>,
+    control_changes: Vec<RuntimeControlChange>,
     events: Vec<PendingEventRecord>,
     invalidation: InvalidationPackage,
 }
@@ -29,8 +30,7 @@ pub(crate) struct CausalTransactionBuilder {
 pub(crate) struct CausalTransactionHeader {
     pub(crate) id: CausalTransactionId,
     pub(crate) source: RequestSource,
-    pub(crate) action: DefinitionId,
-    pub(crate) effect_program: DefinitionId,
+    pub(crate) cause: TransactionCause,
     pub(crate) occurred_at: SimulationTime,
     pub(crate) replay_level: ReplayLevel,
     pub(crate) provenance: Option<ProvenanceKey>,
@@ -41,12 +41,12 @@ impl CausalTransactionBuilder {
         Self {
             id: header.id,
             source: header.source,
-            action: header.action,
-            effect_program: header.effect_program,
+            cause: header.cause,
             occurred_at: header.occurred_at,
             replay_level: header.replay_level,
             provenance: header.provenance,
             changes: Vec::new(),
+            control_changes: Vec::new(),
             events: Vec::new(),
             invalidation,
         }
@@ -60,10 +60,25 @@ impl CausalTransactionBuilder {
             .collect()
     }
 
+    pub(crate) const fn cause(&self) -> TransactionCause {
+        self.cause
+    }
+
+    pub(crate) fn has_staged_events(&self) -> bool {
+        !self.events.is_empty()
+    }
+
     pub(crate) fn push_change(&mut self, change: HardStateChange) {
         self.invalidation
             .mark_store_family(change.changed_store_family());
         self.changes.push(change);
+    }
+
+    pub(crate) fn push_control_change(&mut self, change: RuntimeControlChange) {
+        self.invalidation
+            .mark_authority_class(AuthorityClass::RuntimeControl)
+            .mark_store_family(StoreFamily::RuntimeControl);
+        self.control_changes.push(change);
     }
 
     pub(crate) fn staged_entity_insert(&self, entity: EntityId) -> bool {
@@ -111,12 +126,12 @@ impl CausalTransactionBuilder {
         StagedTransactionParts {
             id: self.id,
             source: self.source,
-            action: self.action,
-            effect_program: self.effect_program,
+            cause: self.cause,
             occurred_at: self.occurred_at,
             replay_level: self.replay_level,
             provenance: self.provenance,
             changes: self.changes,
+            control_changes: self.control_changes,
             events: self.events,
             invalidation: self.invalidation,
         }
@@ -126,12 +141,12 @@ impl CausalTransactionBuilder {
 pub(crate) struct StagedTransactionParts {
     pub(crate) id: CausalTransactionId,
     pub(crate) source: RequestSource,
-    pub(crate) action: DefinitionId,
-    pub(crate) effect_program: DefinitionId,
+    pub(crate) cause: TransactionCause,
     pub(crate) occurred_at: SimulationTime,
     pub(crate) replay_level: ReplayLevel,
     pub(crate) provenance: Option<ProvenanceKey>,
     pub(crate) changes: Vec<HardStateChange>,
+    pub(crate) control_changes: Vec<RuntimeControlChange>,
     pub(crate) events: Vec<PendingEventRecord>,
     pub(crate) invalidation: InvalidationPackage,
 }
@@ -191,6 +206,10 @@ impl<'model, 'tx> EffectStager<'model, 'tx> {
 
     pub(crate) fn push_change(&mut self, change: HardStateChange) {
         self.transaction.push_change(change);
+    }
+
+    pub(crate) fn push_control_change(&mut self, change: RuntimeControlChange) {
+        self.transaction.push_control_change(change);
     }
 
     pub(crate) fn push_event(&mut self, event: PendingEventRecord) -> Result<(), RuntimeError> {

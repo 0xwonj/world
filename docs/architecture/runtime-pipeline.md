@@ -559,6 +559,14 @@ request / tick / reaction
   -> InvalidActionFeedback or staged execution
 ```
 
+Process tick metadata must separate definition-level capability from
+transaction-level execution. A `ProcessDef` or resolution support entry may
+declare effect programs that can implement a tick, but transaction history
+should record only the implementation that actually ran. If ticks can be
+handled by both built-in progress semantics and interpreted effect programs,
+represent that as explicit execution-mode metadata instead of a mandatory
+`ProcessTick.effect_program` field.
+
 Validation may use privileged `KernelQuery` reads. It may also compare actor
 submitted context against current truth when stale actor views matter.
 

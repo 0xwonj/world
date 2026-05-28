@@ -10,6 +10,7 @@ macro_rules! core_value {
 
         impl $name {
             /// Creates the value when the raw identifier is nonzero.
+            #[must_use]
             pub const fn new(value: u64) -> Option<Self> {
                 match NonZeroU64::new(value) {
                     Some(value) => Some(Self(value)),
@@ -18,6 +19,7 @@ macro_rules! core_value {
             }
 
             /// Returns the underlying stable numeric value.
+            #[must_use]
             pub const fn get(self) -> u64 {
                 self.0.get()
             }
@@ -49,17 +51,18 @@ macro_rules! issued_value {
 
         impl $name {
             /// Returns the underlying stable numeric value.
+            #[must_use]
             pub const fn get(self) -> u64 {
                 self.0.get()
             }
         }
 
-            /// Monotonic issuer for allocation labels owned by a store or runtime boundary.
-            ///
-            /// Issued ids are stable references, not authority tokens. Committed records
-            /// must still be accepted through the crate that owns the relevant authority gate.
-            #[derive(Clone, Debug, PartialEq, Eq)]
-            pub struct $issuer {
+        /// Monotonic issuer for allocation labels owned by a store or runtime boundary.
+        ///
+        /// Issued ids are stable references, not authority tokens. Committed records
+        /// must still be accepted through the crate that owns the relevant authority gate.
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub struct $issuer {
             next: Option<NonZeroU64>,
         }
 
@@ -71,6 +74,7 @@ macro_rules! issued_value {
 
         impl $issuer {
             /// Creates an issuer starting at the first valid value.
+            #[must_use]
             pub const fn new() -> Self {
                 Self {
                     next: NonZeroU64::new(1),
@@ -93,6 +97,7 @@ macro_rules! issued_value {
             }
 
             /// Returns the next value that will be issued, if the numeric space is not exhausted.
+            #[must_use]
             pub const fn next_value(&self) -> Option<u64> {
                 match self.next {
                     Some(next) => Some(next.get()),

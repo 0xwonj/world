@@ -5,6 +5,7 @@ use world_model::{EventRoleBinding, HardStateChange, RelationKey};
 use crate::{
     RuntimeError,
     builtin::{BuiltinEffect, BuiltinRole},
+    control::{AcquireReservationRequest, ReservationRuntime, RuntimeControlIds},
     request::BoundRuntimeRequest,
     transaction::{EffectStager, PendingEventRecord},
 };
@@ -18,8 +19,9 @@ impl TypedEffectInterpreter {
         request: &BoundRuntimeRequest,
         stager: &mut EffectStager<'_, '_>,
         event_ids: &mut EventRecordIdIssuer,
+        control_ids: &mut RuntimeControlIds,
     ) -> Result<(), RuntimeError> {
-        let mut context = StageContext::new(request, stager, event_ids);
+        let mut context = StageContext::new(request, stager, event_ids, control_ids);
         for operation in program.operations() {
             BuiltinEffect::from_operation(operation)?.stage(&mut context, operation)?;
         }
@@ -46,6 +48,7 @@ pub(crate) struct StageContext<'request, 'stager, 'model, 'tx> {
     request: &'request BoundRuntimeRequest,
     stager: &'stager mut EffectStager<'model, 'tx>,
     event_ids: &'stager mut EventRecordIdIssuer,
+    control_ids: &'stager mut RuntimeControlIds,
 }
 
 impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx> {
@@ -53,11 +56,13 @@ impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx
         request: &'request BoundRuntimeRequest,
         stager: &'stager mut EffectStager<'model, 'tx>,
         event_ids: &'stager mut EventRecordIdIssuer,
+        control_ids: &'stager mut RuntimeControlIds,
     ) -> Self {
         Self {
             request,
             stager,
             event_ids,
+            control_ids,
         }
     }
 
@@ -73,8 +78,20 @@ impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx
         Ok((role, entity))
     }
 
+    pub(crate) fn optional_role(
+        &self,
+        role: BuiltinRole,
+    ) -> Result<Option<EntityId>, RuntimeError> {
+        let role = role.name()?;
+        Ok(self.request.bound_role_entity(&role))
+    }
+
     pub(crate) const fn provenance(&self) -> Option<ProvenanceKey> {
         self.request.provenance()
+    }
+
+    pub(crate) const fn request_time(&self) -> world_core::SimulationTime {
+        self.request.submitted_at()
     }
 
     pub(crate) fn contains_entity(&self, entity: EntityId) -> bool {
@@ -87,6 +104,15 @@ impl<'request, 'stager, 'model, 'tx> StageContext<'request, 'stager, 'model, 'tx
 
     pub(crate) fn push_change(&mut self, change: HardStateChange) {
         self.stager.push_change(change);
+    }
+
+    pub(crate) fn acquire_reservation(
+        &mut self,
+        request: AcquireReservationRequest,
+    ) -> Result<(), RuntimeError> {
+        let change = ReservationRuntime::acquire(self.control_ids, request)?;
+        self.stager.push_control_change(change);
+        Ok(())
     }
 
     pub(crate) fn emit_declared_events(

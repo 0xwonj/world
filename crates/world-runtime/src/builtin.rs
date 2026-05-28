@@ -1,12 +1,13 @@
 use world_core::EntityId;
 use world_defs::{EffectKind, EffectOp, RoleName, StagePermission};
-use world_model::{HardStateChange, RelationFamily, RelationKey};
+use world_model::{
+    HardStateChange, RelationFamily, RelationKey, ReservationHolder, ReservationTarget,
+};
 
 use crate::{
     RuntimeError,
-    effects::StageContext,
     outcome::{RejectedOutcome, RejectionReason},
-    validation::{RuntimeValidationFailure, ValidationContext},
+    transaction::{RuntimeValidationFailure, StageContext, ValidationContext},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,6 +39,7 @@ impl BuiltinRole {
 pub(crate) enum BuiltinEffect {
     InsertEntity,
     TransferEntity,
+    AcquireReservation,
     RecordEvent,
 }
 
@@ -46,6 +48,7 @@ impl BuiltinEffect {
         match kind.as_str() {
             "insert_entity" => Some(Self::InsertEntity),
             "transfer_entity" => Some(Self::TransferEntity),
+            "acquire_reservation" => Some(Self::AcquireReservation),
             "record_event" => Some(Self::RecordEvent),
             _ => None,
         }
@@ -65,6 +68,7 @@ impl BuiltinEffect {
         match self {
             Self::InsertEntity => validate_insert_entity(context),
             Self::TransferEntity => validate_transfer_entity(context),
+            Self::AcquireReservation => validate_acquire_reservation(context, operation),
             Self::RecordEvent => {
                 validate_event_permission(operation)?;
                 Ok(())
@@ -80,12 +84,31 @@ impl BuiltinEffect {
         match self {
             Self::InsertEntity => stage_insert_entity(context, operation),
             Self::TransferEntity => stage_transfer_entity(context, operation),
+            Self::AcquireReservation => stage_acquire_reservation(context, operation),
             Self::RecordEvent => {
                 validate_event_permission(operation)?;
                 context.emit_declared_events(operation)
             }
         }
     }
+}
+
+fn validate_acquire_reservation(
+    context: &mut ValidationContext<'_>,
+    operation: &EffectOp,
+) -> Result<(), RuntimeValidationFailure> {
+    require_permission_for_validation(operation, StagePermission::AcquireReservation)?;
+    let (_, item) = context.required_role(BuiltinRole::Item)?;
+    let target = ReservationTarget::Entity(item);
+    if context.contains_active_reservation(&target) {
+        return Err(RejectedOutcome::new(
+            context.action(),
+            RejectionReason::ReservationAlreadyHeld { target },
+        )
+        .into());
+    }
+    context.insert_reservation_target(target);
+    Ok(())
 }
 
 fn validate_insert_entity(
@@ -191,6 +214,25 @@ fn stage_transfer_entity(
     context.emit_declared_events(operation)
 }
 
+fn stage_acquire_reservation(
+    context: &mut StageContext<'_, '_, '_, '_>,
+    operation: &EffectOp,
+) -> Result<(), RuntimeError> {
+    require_permission(operation, StagePermission::AcquireReservation)?;
+    let (_, item) = context.required_role(BuiltinRole::Item)?;
+    let holder = match context.optional_role(BuiltinRole::Actor)? {
+        Some(actor) => ReservationHolder::Entity(actor),
+        None => ReservationHolder::Runtime,
+    };
+    context.acquire_reservation(crate::control::AcquireReservationRequest::new(
+        holder,
+        ReservationTarget::Entity(item),
+        context.request_time(),
+        context.provenance(),
+    ))?;
+    context.emit_declared_events(operation)
+}
+
 fn require_visible_entity(
     context: &StageContext<'_, '_, '_, '_>,
     role: RoleName,
@@ -213,6 +255,21 @@ fn validate_event_permission(operation: &EffectOp) -> Result<(), RuntimeError> {
             operation: operation.kind().clone(),
             permission: StagePermission::EmitPhysicalEventRecord,
         })
+    }
+}
+
+fn require_permission_for_validation(
+    operation: &EffectOp,
+    permission: StagePermission,
+) -> Result<(), RuntimeValidationFailure> {
+    if operation.requires_permission(permission) {
+        Ok(())
+    } else {
+        Err(RuntimeError::PermissionNotDeclared {
+            operation: operation.kind().clone(),
+            permission,
+        }
+        .into())
     }
 }
 

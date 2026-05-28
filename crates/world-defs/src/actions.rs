@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use world_core::{DefinitionId, VersionAnchor};
 
 use crate::effects::StagePermission;
-use crate::error::{DefinitionError, require_not_empty};
+use crate::error::{DefinitionError, empty_definition_field};
 use crate::events::EventContract;
 use crate::keys::DefinitionName;
 use crate::roles::{
@@ -40,7 +40,9 @@ impl ActionDef {
         version: VersionAnchor,
     ) -> Result<Self, DefinitionError> {
         let roles = roles.into_iter().collect::<Vec<_>>();
-        require_not_empty(id, "ActionDef", "roles", &roles)?;
+        if roles.is_empty() {
+            return Err(empty_definition_field(id, "ActionDef", "roles"));
+        }
         ensure_unique_roles(id, &roles)?;
 
         let role_names = declared_role_names(&roles);
@@ -59,7 +61,9 @@ impl ActionDef {
         validate_role_refs(id, &role_names, event_contract.role_refs())?;
 
         let stage_permissions = stage_permissions.into_iter().collect::<BTreeSet<_>>();
-        require_not_empty(id, "ActionDef", "stage_permissions", &stage_permissions)?;
+        if stage_permissions.is_empty() {
+            return Err(empty_definition_field(id, "ActionDef", "stage_permissions"));
+        }
 
         Ok(Self {
             id,

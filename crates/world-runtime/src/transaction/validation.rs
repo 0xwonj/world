@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use world_core::{DefinitionId, EntityId};
 use world_defs::{ActionDef, EffectProgramDef, RoleName};
-use world_model::{RelationKey, WorldModel};
+use world_model::{
+    RelationKey, ReservationState, ReservationTarget, RuntimeControlRecordPayload, WorldModel,
+};
 
 use crate::{
     RuntimeError,
@@ -101,6 +103,7 @@ pub(crate) struct ValidationContext<'model> {
     model: &'model WorldModel,
     entities: BTreeSet<EntityId>,
     relations: BTreeSet<RelationKey>,
+    reservation_targets: BTreeSet<ReservationTarget>,
 }
 
 impl<'model> ValidationContext<'model> {
@@ -115,6 +118,7 @@ impl<'model> ValidationContext<'model> {
             model,
             entities: BTreeSet::new(),
             relations: BTreeSet::new(),
+            reservation_targets: BTreeSet::new(),
         }
     }
 
@@ -152,5 +156,20 @@ impl<'model> ValidationContext<'model> {
 
     pub(crate) fn insert_relation(&mut self, relation: RelationKey) {
         self.relations.insert(relation);
+    }
+
+    pub(crate) fn contains_active_reservation(&self, target: &ReservationTarget) -> bool {
+        self.reservation_targets.contains(target)
+            || self.model.runtime_control_store().records().any(|record| {
+                let RuntimeControlRecordPayload::Reservation(reservation) = record.payload() else {
+                    return false;
+                };
+                matches!(reservation.state(), ReservationState::Held { .. })
+                    && reservation.target() == target
+            })
+    }
+
+    pub(crate) fn insert_reservation_target(&mut self, target: ReservationTarget) {
+        self.reservation_targets.insert(target);
     }
 }

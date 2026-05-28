@@ -7,26 +7,50 @@ use world_core::{
 use world_defs::EventRecordSpec;
 
 use crate::{
-    DerivedViewInvalidationReport, EntitySnapshot, EventRecord, EventRoleBinding,
-    InvalidationPackage, InvalidationSource, ModelError, RelationFamily, RelationRecord,
-    StoreFamily, TransactionRecord,
+    DerivedViewInvalidationReport, EventRecord, EventRoleBinding, InvalidationPackage,
+    InvalidationSource, ModelError, RelationFamily, RuntimeControlChange, StoreFamily,
+    TransactionCause, TransactionRecord,
 };
 
-/// Runtime-accepted hard commit package applied by the model as one unit.
+/// Runtime-authority hard commit package applied by the model as one unit.
+///
+/// Normal code should produce this package by executing through the causal
+/// runtime. The constructor is public because the runtime lives in a separate
+/// crate; direct construction by other callers bypasses runtime discipline and
+/// is guarded by repository authority tests rather than Rust friend visibility.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AcceptedHardCommit {
     transaction: TransactionCommit,
     events: Vec<EventCommit>,
     changes: Vec<HardStateChange>,
+    control_changes: Vec<RuntimeControlChange>,
     invalidation: InvalidationPackage,
 }
 
 impl AcceptedHardCommit {
-    /// Creates a hard commit package that has already been accepted by runtime authority.
+    /// Creates a hard commit package already accepted by runtime authority.
+    ///
+    /// This is an accepted-package constructor for the runtime producer, not a
+    /// general hard-state mutation API.
     pub fn new(
         transaction: TransactionCommit,
         events: impl IntoIterator<Item = EventCommit>,
         changes: impl IntoIterator<Item = HardStateChange>,
+        invalidation: InvalidationPackage,
+    ) -> Result<Self, ModelError> {
+        Self::with_control_changes(transaction, events, changes, [], invalidation)
+    }
+
+    /// Creates a runtime-authority hard commit package with runtime-control
+    /// changes that must apply atomically with the hard transaction.
+    ///
+    /// This keeps hard state and runtime-control state in one accepted package
+    /// when process execution commits both kinds of state.
+    pub fn with_control_changes(
+        transaction: TransactionCommit,
+        events: impl IntoIterator<Item = EventCommit>,
+        changes: impl IntoIterator<Item = HardStateChange>,
+        control_changes: impl IntoIterator<Item = RuntimeControlChange>,
         invalidation: InvalidationPackage,
     ) -> Result<Self, ModelError> {
         if invalidation.source() != InvalidationSource::HardCommit(transaction.id()) {
@@ -45,6 +69,7 @@ impl AcceptedHardCommit {
             transaction,
             events,
             changes: changes.into_iter().collect(),
+            control_changes: control_changes.into_iter().collect(),
             invalidation,
         })
     }
@@ -64,6 +89,11 @@ impl AcceptedHardCommit {
         &self.changes
     }
 
+    /// Returns runtime-control changes that are atomic with this hard commit.
+    pub fn control_changes(&self) -> &[RuntimeControlChange] {
+        &self.control_changes
+    }
+
     /// Returns the derived-view invalidation package included in this commit.
     pub const fn invalidation(&self) -> &InvalidationPackage {
         &self.invalidation
@@ -75,12 +105,14 @@ impl AcceptedHardCommit {
         TransactionCommit,
         Vec<EventCommit>,
         Vec<HardStateChange>,
+        Vec<RuntimeControlChange>,
         InvalidationPackage,
     ) {
         (
             self.transaction,
             self.events,
             self.changes,
+            self.control_changes,
             self.invalidation,
         )
     }
@@ -91,15 +123,14 @@ impl AcceptedHardCommit {
 pub struct TransactionCommit {
     id: CausalTransactionId,
     source: CausalSource,
-    action: DefinitionId,
-    effect_program: DefinitionId,
+    cause: TransactionCause,
     replay_level: ReplayLevel,
     occurred_at: SimulationTime,
     provenance: Option<ProvenanceKey>,
 }
 
 impl TransactionCommit {
-    /// Creates committed transaction metadata.
+    /// Creates committed transaction metadata for an action request.
     pub const fn new(
         id: CausalTransactionId,
         source: CausalSource,
@@ -109,11 +140,53 @@ impl TransactionCommit {
         occurred_at: SimulationTime,
         provenance: Option<ProvenanceKey>,
     ) -> Self {
-        Self {
+        Self::for_action(
             id,
             source,
             action,
             effect_program,
+            replay_level,
+            occurred_at,
+            provenance,
+        )
+    }
+
+    /// Creates committed transaction metadata for an action request.
+    pub const fn for_action(
+        id: CausalTransactionId,
+        source: CausalSource,
+        action: DefinitionId,
+        effect_program: DefinitionId,
+        replay_level: ReplayLevel,
+        occurred_at: SimulationTime,
+        provenance: Option<ProvenanceKey>,
+    ) -> Self {
+        Self::from_cause(
+            id,
+            source,
+            TransactionCause::Action {
+                action,
+                effect_program,
+            },
+            replay_level,
+            occurred_at,
+            provenance,
+        )
+    }
+
+    /// Creates committed transaction metadata from an explicit transaction cause.
+    pub const fn from_cause(
+        id: CausalTransactionId,
+        source: CausalSource,
+        cause: TransactionCause,
+        replay_level: ReplayLevel,
+        occurred_at: SimulationTime,
+        provenance: Option<ProvenanceKey>,
+    ) -> Self {
+        Self {
+            id,
+            source,
+            cause,
             replay_level,
             occurred_at,
             provenance,
@@ -130,14 +203,19 @@ impl TransactionCommit {
         self.source
     }
 
-    /// Returns the action definition accepted by runtime validation.
-    pub const fn action(self) -> DefinitionId {
-        self.action
+    /// Returns the runtime cause for this transaction.
+    pub const fn cause(self) -> TransactionCause {
+        self.cause
     }
 
-    /// Returns the effect program definition interpreted for this transaction.
-    pub const fn effect_program(self) -> DefinitionId {
-        self.effect_program
+    /// Returns the action definition for action-request transactions.
+    pub const fn action(self) -> Option<DefinitionId> {
+        self.cause.action()
+    }
+
+    /// Returns the effect program associated with action-request transactions.
+    pub const fn effect_program(self) -> Option<DefinitionId> {
+        self.cause.effect_program()
     }
 
     /// Returns declared replay strength for this transaction.
@@ -159,8 +237,7 @@ impl TransactionCommit {
         TransactionRecord::new(
             self.id,
             self.source,
-            self.action,
-            self.effect_program,
+            self.cause,
             self.replay_level,
             self.occurred_at,
             self.provenance,
@@ -335,29 +412,6 @@ impl HardStateChange {
                 })
             }
             Self::InsertRelation { .. } => Ok(()),
-        }
-    }
-
-    pub(crate) fn to_entity_snapshot(&self) -> Option<EntitySnapshot> {
-        match self {
-            Self::InsertEntity {
-                entity,
-                runtime_handle,
-                provenance,
-            } => Some(EntitySnapshot::new(*entity, *runtime_handle, *provenance)),
-            Self::InsertRelation { .. } => None,
-        }
-    }
-
-    pub(crate) fn to_relation_record(&self) -> Option<RelationRecord> {
-        match self {
-            Self::InsertRelation {
-                subject,
-                family,
-                object,
-                provenance,
-            } => Some(RelationRecord::new(*subject, *family, *object, *provenance)),
-            Self::InsertEntity { .. } => None,
         }
     }
 }

@@ -1,5 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use thiserror::Error;
 use world_core::DefinitionId;
 
@@ -143,44 +141,14 @@ pub enum DefinitionError {
     },
 }
 
-pub(crate) fn require_not_empty<T>(
+pub(crate) fn empty_definition_field(
     definition: DefinitionId,
     type_name: &'static str,
     field: &'static str,
-    values: &T,
-) -> Result<(), DefinitionError>
-where
-    T: IsEmpty,
-{
-    if values.is_empty() {
-        Err(DefinitionError::EmptyDefinitionField {
-            definition,
-            type_name,
-            field,
-        })
-    } else {
-        Ok(())
-    }
-}
-
-pub(crate) trait IsEmpty {
-    fn is_empty(&self) -> bool;
-}
-
-impl<T> IsEmpty for Vec<T> {
-    fn is_empty(&self) -> bool {
-        Vec::is_empty(self)
-    }
-}
-
-impl<T> IsEmpty for BTreeSet<T> {
-    fn is_empty(&self) -> bool {
-        BTreeSet::is_empty(self)
-    }
-}
-
-impl<K, V> IsEmpty for BTreeMap<K, V> {
-    fn is_empty(&self) -> bool {
-        BTreeMap::is_empty(self)
+) -> DefinitionError {
+    DefinitionError::EmptyDefinitionField {
+        definition,
+        type_name,
+        field,
     }
 }

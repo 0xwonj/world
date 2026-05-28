@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 
 use world_core::{
-    ActivityId, ActivityIdIssuer, ActorId, AuthorityClass, CausalSource, CausalTransactionId,
-    CausalTransactionIdIssuer, DefinitionId, EntityId, EventRecordId, EventRecordIdIssuer,
-    ProcessInstanceId, ProcessInstanceIdIssuer, ProvenanceKey, QueryEpoch, ReplayLevel,
-    ReservationId, ReservationIdIssuer, SimulationTime, VersionAnchor,
+    ActorId, AuthorityClass, CausalSource, CausalTransactionId, CausalTransactionIdIssuer,
+    DefinitionId, EntityId, EventRecordId, EventRecordIdIssuer, ProcessInstanceId,
+    ProcessInstanceIdIssuer, ProvenanceKey, QueryEpoch, ReplayLevel, ReservationId,
+    ReservationIdIssuer, ScheduledWakeupId, ScheduledWakeupIdIssuer, SimulationTime, VersionAnchor,
+    WakeupOrderKey,
 };
-use world_defs::{EventKind, EventRecordSpec, RoleName};
+use world_defs::{EventKind, EventRecordSpec, ResolutionTier, RoleName};
 
 use super::*;
 
@@ -103,22 +104,22 @@ fn process(value: u64) -> ProcessInstanceId {
     value
 }
 
-fn activity(value: u64) -> ActivityId {
-    let Ok(mut issuer) = ActivityIdIssuer::starting_at(value) else {
-        panic!("test activity id must be nonzero");
-    };
-    let Some(value) = issuer.issue() else {
-        panic!("test activity id space must not be exhausted");
-    };
-    value
-}
-
 fn reservation(value: u64) -> ReservationId {
     let Ok(mut issuer) = ReservationIdIssuer::starting_at(value) else {
         panic!("test reservation id must be nonzero");
     };
     let Some(value) = issuer.issue() else {
         panic!("test reservation id space must not be exhausted");
+    };
+    value
+}
+
+fn scheduled_wakeup(value: u64) -> ScheduledWakeupId {
+    let Ok(mut issuer) = ScheduledWakeupIdIssuer::starting_at(value) else {
+        panic!("test scheduled wakeup id must be nonzero");
+    };
+    let Some(value) = issuer.issue() else {
+        panic!("test scheduled wakeup id space must not be exhausted");
     };
     value
 }
@@ -168,8 +169,10 @@ fn transaction_record(
     TransactionRecord::new(
         id,
         CausalSource::Tooling,
-        definition(100),
-        definition(101),
+        TransactionCause::Action {
+            action: definition(100),
+            effect_program: definition(101),
+        },
         ReplayLevel::EventRebuild,
         occurred_at,
         provenance,
@@ -181,7 +184,7 @@ fn transaction_commit(
     occurred_at: SimulationTime,
     provenance: Option<ProvenanceKey>,
 ) -> TransactionCommit {
-    TransactionCommit::new(
+    TransactionCommit::for_action(
         id,
         CausalSource::Tooling,
         definition(100),
@@ -212,6 +215,140 @@ fn hard_invalidation(
         invalidation.mark_store_family(store);
     }
     invalidation
+}
+
+fn runtime_invalidation() -> InvalidationPackage {
+    let mut invalidation = InvalidationPackage::new(InvalidationSource::RuntimeControl);
+    invalidation
+        .mark_authority_class(AuthorityClass::RuntimeControl)
+        .mark_store_family(StoreFamily::RuntimeControl);
+    invalidation
+}
+
+fn runtime_update(
+    source: RuntimeControlSource,
+    occurred_at: SimulationTime,
+    changes: impl IntoIterator<Item = RuntimeControlChange>,
+) -> AcceptedRuntimeControlUpdate {
+    runtime_update_with_provenance(source, occurred_at, None, changes)
+}
+
+fn runtime_update_with_provenance(
+    source: RuntimeControlSource,
+    occurred_at: SimulationTime,
+    provenance: Option<ProvenanceKey>,
+    changes: impl IntoIterator<Item = RuntimeControlChange>,
+) -> AcceptedRuntimeControlUpdate {
+    must_ok(AcceptedRuntimeControlUpdate::new(
+        RuntimeControlUpdateHeader::new(source, occurred_at, ReplayLevel::AuditOnly, provenance),
+        changes,
+        runtime_invalidation(),
+    ))
+}
+
+fn hard_and_control_invalidation(
+    transaction: CausalTransactionId,
+    stores: impl IntoIterator<Item = StoreFamily>,
+) -> InvalidationPackage {
+    let mut invalidation = hard_invalidation(transaction, stores);
+    invalidation
+        .mark_authority_class(AuthorityClass::RuntimeControl)
+        .mark_store_family(StoreFamily::RuntimeControl);
+    invalidation
+}
+
+fn process_record(id: ProcessInstanceId) -> ProcessInstanceRecord {
+    ProcessInstanceRecord::new(ProcessInstanceInit::new(
+        id,
+        definition(501),
+        ResolutionTier::Concrete,
+        ProcessLifecycle::Created,
+        ProcessProgress::OpenEnded {
+            completed: ProcessWork::from_units(0),
+        },
+        version(1),
+    ))
+}
+
+fn process_record_with_lifecycle(
+    id: ProcessInstanceId,
+    lifecycle: ProcessLifecycle,
+) -> ProcessInstanceRecord {
+    ProcessInstanceRecord::new(ProcessInstanceInit::new(
+        id,
+        definition(501),
+        ResolutionTier::Concrete,
+        lifecycle,
+        ProcessProgress::OpenEnded {
+            completed: ProcessWork::from_units(0),
+        },
+        version(1),
+    ))
+}
+
+fn reservation_record(
+    id: ReservationId,
+    target: ReservationTarget,
+    acquired_at: SimulationTime,
+) -> ReservationRecord {
+    ReservationRecord::new(
+        id,
+        ReservationHolder::Runtime,
+        target,
+        ReservationState::Held { acquired_at },
+        None,
+    )
+}
+
+fn wakeup_record(
+    id: ScheduledWakeupId,
+    order: WakeupOrderKey,
+    target: WakeupTarget,
+) -> ScheduledWakeupRecord {
+    ScheduledWakeupRecord::new(
+        id,
+        order,
+        target,
+        ScheduledWakeupStatus::Scheduled,
+        RuntimeControlSource::Scheduler,
+        None,
+    )
+}
+
+fn create_process_change(
+    process: ProcessInstanceRecord,
+    updated_at: SimulationTime,
+) -> RuntimeControlChange {
+    let provenance = process.provenance();
+    RuntimeControlChange::CreateProcess {
+        process,
+        updated_at,
+        provenance,
+    }
+}
+
+fn acquire_reservation_change(
+    reservation: ReservationRecord,
+    updated_at: SimulationTime,
+) -> RuntimeControlChange {
+    let provenance = reservation.provenance();
+    RuntimeControlChange::AcquireReservation {
+        reservation,
+        updated_at,
+        provenance,
+    }
+}
+
+fn schedule_wakeup_change(
+    wakeup: ScheduledWakeupRecord,
+    updated_at: SimulationTime,
+) -> RuntimeControlChange {
+    let provenance = wakeup.provenance();
+    RuntimeControlChange::ScheduleWakeup {
+        wakeup,
+        updated_at,
+        provenance,
+    }
 }
 
 #[test]
@@ -605,26 +742,692 @@ fn hard_commit_application_is_atomic_when_late_storage_checks_fail() {
 #[test]
 fn runtime_control_store_is_separate_from_hard_state() {
     let mut model = WorldModel::new();
-    let reservation_kind = RuntimeControlRecordKind::Reservation(reservation(1));
-    let process_kind = RuntimeControlRecordKind::Process(process(1));
-    let activity_kind = RuntimeControlRecordKind::Activity(activity(1));
+    let first_reservation = reservation(1);
+    let second_reservation = reservation(2);
+    let process_id = process(1);
+    let target = ReservationTarget::Entity(entity(20));
+    let reservation_kind = RuntimeControlRecordKind::Reservation(first_reservation);
+    let process_kind = RuntimeControlRecordKind::Process(process_id);
 
     must_ok(model.insert_runtime_control(RuntimeControlRecord::new(
-        reservation_kind,
+        RuntimeControlRecordPayload::Reservation(reservation_record(
+            first_reservation,
+            target.clone(),
+            SimulationTime::from_ticks(1),
+        )),
+        SimulationTime::from_ticks(1),
         Some(provenance(1)),
     )));
-    must_ok(model.insert_runtime_control(RuntimeControlRecord::new(process_kind, None)));
-    must_ok(model.insert_runtime_control(RuntimeControlRecord::new(activity_kind, None)));
+    must_ok(model.insert_runtime_control(RuntimeControlRecord::new(
+        RuntimeControlRecordPayload::Process(process_record(process_id)),
+        SimulationTime::from_ticks(1),
+        None,
+    )));
 
-    assert_eq!(model.runtime_control_store().len(), 3);
+    assert_eq!(model.runtime_control_store().len(), 2);
     assert_eq!(model.world_store().len(), 0);
     assert!(model.runtime_control_store().contains(reservation_kind));
+    assert!(model.runtime_control_store().contains(process_kind));
     assert_eq!(
-        model.insert_runtime_control(RuntimeControlRecord::new(reservation_kind, None)),
-        Err(ModelError::DuplicateRuntimeControlRecord {
-            kind: reservation_kind,
+        model.insert_runtime_control(RuntimeControlRecord::new(
+            RuntimeControlRecordPayload::Reservation(reservation_record(
+                second_reservation,
+                target.clone(),
+                SimulationTime::from_ticks(2),
+            )),
+            SimulationTime::from_ticks(2),
+            None,
+        )),
+        Err(ModelError::DuplicateActiveReservation {
+            reservation: first_reservation,
+            target,
         })
     );
+}
+
+#[test]
+fn accepted_runtime_control_update_applies_records_history_and_invalidation() {
+    let mut model = WorldModel::new();
+    let view = derived_view(40);
+    must_ok(
+        model.register_derived_view(must_ok(DerivedViewDescriptor::new(
+            view,
+            [AuthorityRead::runtime_control()],
+        ))),
+    );
+
+    let process_id = process(40);
+    let reservation_id = reservation(40);
+    let wakeup_id = scheduled_wakeup(40);
+    let wakeup_order = WakeupOrderKey::new(SimulationTime::from_ticks(20), 1, -10, 3);
+    let update = runtime_update_with_provenance(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(10),
+        Some(provenance(40)),
+        [
+            create_process_change(process_record(process_id), SimulationTime::from_ticks(10)),
+            acquire_reservation_change(
+                reservation_record(
+                    reservation_id,
+                    ReservationTarget::Entity(entity(40)),
+                    SimulationTime::from_ticks(10),
+                ),
+                SimulationTime::from_ticks(10),
+            ),
+            schedule_wakeup_change(
+                wakeup_record(wakeup_id, wakeup_order, WakeupTarget::Process(process_id)),
+                SimulationTime::from_ticks(10),
+            ),
+        ],
+    );
+
+    let application = must_ok(model.apply_runtime_control_update(update));
+
+    assert_eq!(application.update_cursor().get(), 0);
+    assert_eq!(application.changed_records().len(), 3);
+    assert_eq!(application.invalidation().touched_views(), 1);
+    assert_eq!(model.runtime_control_store().update_count(), 1);
+    assert!(model.runtime_control_store().process(process_id).is_some());
+    assert!(
+        model
+            .runtime_control_store()
+            .reservation(reservation_id)
+            .is_some()
+    );
+    assert!(
+        model
+            .runtime_control_store()
+            .scheduled_wakeup(wakeup_id)
+            .is_some()
+    );
+    assert_eq!(
+        model
+            .runtime_control_store()
+            .due_wakeups(SimulationTime::from_ticks(20))
+            .map(ScheduledWakeupRecord::id)
+            .collect::<Vec<_>>(),
+        vec![wakeup_id]
+    );
+    assert_eq!(
+        must_some(model.derived_view(view)).status(),
+        DerivedViewStatus::Stale
+    );
+}
+
+#[test]
+fn runtime_control_application_reports_unique_changed_records() {
+    let mut model = WorldModel::new();
+    let process_id = process(41);
+    let created = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(1),
+        [create_process_change(
+            process_record(process_id),
+            SimulationTime::from_ticks(1),
+        )],
+    );
+    must_ok(model.apply_runtime_control_update(created));
+
+    let updated = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(2),
+        [
+            RuntimeControlChange::UpdateProcess {
+                process: process_record_with_lifecycle(
+                    process_id,
+                    ProcessLifecycle::Waiting {
+                        condition: WaitCondition::Host,
+                    },
+                ),
+                updated_at: SimulationTime::from_ticks(2),
+                provenance: None,
+            },
+            RuntimeControlChange::UpdateProcess {
+                process: process_record_with_lifecycle(process_id, ProcessLifecycle::Abandoned),
+                updated_at: SimulationTime::from_ticks(3),
+                provenance: None,
+            },
+        ],
+    );
+
+    let application = must_ok(model.apply_runtime_control_update(updated));
+
+    assert_eq!(
+        application.changed_records(),
+        &[RuntimeControlRecordKind::Process(process_id)]
+    );
+    assert!(matches!(
+        model
+            .runtime_control_store()
+            .process(process_id)
+            .map(ProcessInstanceRecord::lifecycle),
+        Some(ProcessLifecycle::Abandoned)
+    ));
+}
+
+#[test]
+fn runtime_control_update_preflight_is_atomic() {
+    let mut model = WorldModel::new();
+    let target = ReservationTarget::Entity(entity(45));
+    let update = runtime_update(
+        RuntimeControlSource::Tooling,
+        SimulationTime::from_ticks(1),
+        [
+            acquire_reservation_change(
+                reservation_record(
+                    reservation(45),
+                    target.clone(),
+                    SimulationTime::from_ticks(1),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+            acquire_reservation_change(
+                reservation_record(
+                    reservation(46),
+                    target.clone(),
+                    SimulationTime::from_ticks(1),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+        ],
+    );
+
+    assert_eq!(
+        model.apply_runtime_control_update(update),
+        Err(ModelError::DuplicateActiveReservation {
+            reservation: reservation(45),
+            target,
+        })
+    );
+    assert!(model.runtime_control_store().is_empty());
+    assert_eq!(model.runtime_control_store().update_count(), 0);
+}
+
+#[test]
+fn runtime_control_update_requires_runtime_invalidation() {
+    let mut model = WorldModel::new();
+    let update = must_ok(AcceptedRuntimeControlUpdate::new(
+        RuntimeControlUpdateHeader::new(
+            RuntimeControlSource::Tooling,
+            SimulationTime::from_ticks(1),
+            ReplayLevel::AuditOnly,
+            None,
+        ),
+        [create_process_change(
+            process_record(process(50)),
+            SimulationTime::from_ticks(1),
+        )],
+        InvalidationPackage::new(InvalidationSource::Manual),
+    ));
+
+    assert_eq!(
+        model.apply_runtime_control_update(update),
+        Err(ModelError::InvalidRuntimeControlInvalidation {
+            invalidation_source: InvalidationSource::Manual,
+        })
+    );
+    assert!(model.runtime_control_store().is_empty());
+}
+
+#[test]
+fn wakeup_terminal_transition_removes_due_work_with_provenance() {
+    let mut model = WorldModel::new();
+    let wakeup_id = scheduled_wakeup(55);
+    let schedule = runtime_update_with_provenance(
+        RuntimeControlSource::Scheduler,
+        SimulationTime::from_ticks(1),
+        Some(provenance(55)),
+        [schedule_wakeup_change(
+            wakeup_record(
+                wakeup_id,
+                WakeupOrderKey::new(SimulationTime::from_ticks(10), 0, 0, 0),
+                WakeupTarget::HostInputOpportunity,
+            ),
+            SimulationTime::from_ticks(1),
+        )],
+    );
+    must_ok(model.apply_runtime_control_update(schedule));
+
+    let skip = runtime_update_with_provenance(
+        RuntimeControlSource::Scheduler,
+        SimulationTime::from_ticks(10),
+        Some(provenance(56)),
+        [RuntimeControlChange::TransitionWakeup {
+            wakeup: wakeup_id,
+            transition: WakeupTerminalTransition::Skipped {
+                at: SimulationTime::from_ticks(10),
+                reason: StaleWakeupReason::Superseded,
+            },
+        }],
+    );
+    must_ok(model.apply_runtime_control_update(skip));
+
+    assert_eq!(
+        model
+            .runtime_control_store()
+            .due_wakeups(SimulationTime::from_ticks(10))
+            .count(),
+        0
+    );
+    assert_eq!(
+        model
+            .runtime_control_store()
+            .scheduled_wakeup(wakeup_id)
+            .map(ScheduledWakeupRecord::status),
+        Some(&ScheduledWakeupStatus::Skipped {
+            at: SimulationTime::from_ticks(10),
+            reason: StaleWakeupReason::Superseded,
+        })
+    );
+}
+
+#[test]
+fn runtime_control_plans_process_update_with_later_wakeup_transition() {
+    let mut model = WorldModel::new();
+    let process_id = process(56);
+    let wakeup_id = scheduled_wakeup(56);
+    let initial = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(1),
+        [
+            create_process_change(
+                process_record_with_lifecycle(
+                    process_id,
+                    ProcessLifecycle::Scheduled { wakeup: wakeup_id },
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+            schedule_wakeup_change(
+                wakeup_record(
+                    wakeup_id,
+                    WakeupOrderKey::new(SimulationTime::from_ticks(2), 0, 0, 0),
+                    WakeupTarget::Process(process_id),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+        ],
+    );
+    must_ok(model.apply_runtime_control_update(initial));
+
+    let terminal = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(2),
+        [
+            RuntimeControlChange::UpdateProcess {
+                process: process_record_with_lifecycle(process_id, ProcessLifecycle::Completed),
+                updated_at: SimulationTime::from_ticks(2),
+                provenance: None,
+            },
+            RuntimeControlChange::TransitionWakeup {
+                wakeup: wakeup_id,
+                transition: WakeupTerminalTransition::Consumed {
+                    at: SimulationTime::from_ticks(2),
+                    reason: WakeupConsumptionReason::Dispatched,
+                },
+            },
+        ],
+    );
+
+    must_ok(model.apply_runtime_control_update(terminal));
+
+    assert!(matches!(
+        model
+            .runtime_control_store()
+            .process(process_id)
+            .map(ProcessInstanceRecord::lifecycle),
+        Some(ProcessLifecycle::Completed)
+    ));
+    assert!(matches!(
+        model
+            .runtime_control_store()
+            .scheduled_wakeup(wakeup_id)
+            .map(ScheduledWakeupRecord::status),
+        Some(ScheduledWakeupStatus::Consumed { .. })
+    ));
+}
+
+#[test]
+fn runtime_control_allows_advancing_execution_claim() {
+    let mut model = WorldModel::new();
+    let process_id = process(61);
+    let wakeup_id = scheduled_wakeup(61);
+    let initial = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(1),
+        [
+            create_process_change(
+                process_record_with_lifecycle(
+                    process_id,
+                    ProcessLifecycle::Scheduled { wakeup: wakeup_id },
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+            schedule_wakeup_change(
+                wakeup_record(
+                    wakeup_id,
+                    WakeupOrderKey::new(SimulationTime::from_ticks(2), 0, 0, 0),
+                    WakeupTarget::Process(process_id),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+        ],
+    );
+    must_ok(model.apply_runtime_control_update(initial));
+
+    let advancing = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(2),
+        [
+            RuntimeControlChange::UpdateProcess {
+                process: process_record_with_lifecycle(process_id, ProcessLifecycle::Advancing),
+                updated_at: SimulationTime::from_ticks(2),
+                provenance: None,
+            },
+            RuntimeControlChange::TransitionWakeup {
+                wakeup: wakeup_id,
+                transition: WakeupTerminalTransition::Consumed {
+                    at: SimulationTime::from_ticks(2),
+                    reason: WakeupConsumptionReason::Dispatched,
+                },
+            },
+        ],
+    );
+    must_ok(model.apply_runtime_control_update(advancing));
+
+    let waiting = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(3),
+        [RuntimeControlChange::UpdateProcess {
+            process: process_record_with_lifecycle(
+                process_id,
+                ProcessLifecycle::Waiting {
+                    condition: WaitCondition::Host,
+                },
+            ),
+            updated_at: SimulationTime::from_ticks(3),
+            provenance: None,
+        }],
+    );
+    must_ok(model.apply_runtime_control_update(waiting));
+
+    assert!(matches!(
+        model
+            .runtime_control_store()
+            .process(process_id)
+            .map(ProcessInstanceRecord::lifecycle),
+        Some(ProcessLifecycle::Waiting {
+            condition: WaitCondition::Host
+        })
+    ));
+}
+
+#[test]
+fn runtime_control_planning_rejects_same_package_reservation_conflict() {
+    let mut model = WorldModel::new();
+    let target = ReservationTarget::Entity(entity(56));
+    let update = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(1),
+        [
+            acquire_reservation_change(
+                reservation_record(
+                    reservation(56),
+                    target.clone(),
+                    SimulationTime::from_ticks(1),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+            acquire_reservation_change(
+                reservation_record(
+                    reservation(57),
+                    target.clone(),
+                    SimulationTime::from_ticks(1),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+        ],
+    );
+
+    assert_eq!(
+        model.apply_runtime_control_update(update),
+        Err(ModelError::DuplicateActiveReservation {
+            reservation: reservation(56),
+            target,
+        })
+    );
+    assert!(model.runtime_control_store().is_empty());
+}
+
+#[test]
+fn runtime_control_rejects_invalid_process_transitions() {
+    let mut model = WorldModel::new();
+    let process_id = process(58);
+    let created = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(1),
+        [create_process_change(
+            process_record(process_id),
+            SimulationTime::from_ticks(1),
+        )],
+    );
+    must_ok(model.apply_runtime_control_update(created));
+
+    let duplicate = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(2),
+        [create_process_change(
+            process_record(process_id),
+            SimulationTime::from_ticks(2),
+        )],
+    );
+    assert_eq!(
+        model.apply_runtime_control_update(duplicate),
+        Err(ModelError::DuplicateRuntimeControlRecord {
+            kind: RuntimeControlRecordKind::Process(process_id),
+        })
+    );
+
+    let missing = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(3),
+        [RuntimeControlChange::UpdateProcess {
+            process: process_record(process(59)),
+            updated_at: SimulationTime::from_ticks(3),
+            provenance: None,
+        }],
+    );
+    assert_eq!(
+        model.apply_runtime_control_update(missing),
+        Err(ModelError::MissingRuntimeControlRecord {
+            kind: RuntimeControlRecordKind::Process(process(59)),
+        })
+    );
+
+    let abandoned = process_record_with_lifecycle(process_id, ProcessLifecycle::Abandoned);
+    let abandon = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(4),
+        [RuntimeControlChange::UpdateProcess {
+            process: abandoned,
+            updated_at: SimulationTime::from_ticks(4),
+            provenance: None,
+        }],
+    );
+    must_ok(model.apply_runtime_control_update(abandon));
+
+    let wakeup_id = scheduled_wakeup(58);
+    let reopen = runtime_update(
+        RuntimeControlSource::ProcessRuntime,
+        SimulationTime::from_ticks(5),
+        [
+            schedule_wakeup_change(
+                wakeup_record(
+                    wakeup_id,
+                    WakeupOrderKey::new(SimulationTime::from_ticks(6), 0, 0, 0),
+                    WakeupTarget::Process(process_id),
+                ),
+                SimulationTime::from_ticks(5),
+            ),
+            RuntimeControlChange::UpdateProcess {
+                process: process_record_with_lifecycle(
+                    process_id,
+                    ProcessLifecycle::Scheduled { wakeup: wakeup_id },
+                ),
+                updated_at: SimulationTime::from_ticks(5),
+                provenance: None,
+            },
+        ],
+    );
+    assert_eq!(
+        model.apply_runtime_control_update(reopen),
+        Err(ModelError::InvalidProcessTransition {
+            process: process_id,
+        })
+    );
+}
+
+#[test]
+fn runtime_control_rejects_repeated_terminal_transitions() {
+    let mut model = WorldModel::new();
+    let reservation_id = reservation(57);
+    let wakeup_id = scheduled_wakeup(57);
+
+    let initial = runtime_update(
+        RuntimeControlSource::Tooling,
+        SimulationTime::from_ticks(1),
+        [
+            acquire_reservation_change(
+                reservation_record(
+                    reservation_id,
+                    ReservationTarget::Entity(entity(57)),
+                    SimulationTime::from_ticks(1),
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+            schedule_wakeup_change(
+                wakeup_record(
+                    wakeup_id,
+                    WakeupOrderKey::new(SimulationTime::from_ticks(2), 0, 0, 0),
+                    WakeupTarget::HostInputOpportunity,
+                ),
+                SimulationTime::from_ticks(1),
+            ),
+        ],
+    );
+    must_ok(model.apply_runtime_control_update(initial));
+
+    let terminal = runtime_update(
+        RuntimeControlSource::Tooling,
+        SimulationTime::from_ticks(2),
+        [
+            RuntimeControlChange::TransitionReservation {
+                reservation: reservation_id,
+                transition: ReservationTransition::Released {
+                    at: SimulationTime::from_ticks(2),
+                },
+            },
+            RuntimeControlChange::TransitionWakeup {
+                wakeup: wakeup_id,
+                transition: WakeupTerminalTransition::Canceled {
+                    at: SimulationTime::from_ticks(2),
+                    reason: WakeupCancellationReason::Host,
+                },
+            },
+        ],
+    );
+    must_ok(model.apply_runtime_control_update(terminal));
+
+    let repeat_reservation = runtime_update(
+        RuntimeControlSource::Tooling,
+        SimulationTime::from_ticks(3),
+        [RuntimeControlChange::TransitionReservation {
+            reservation: reservation_id,
+            transition: ReservationTransition::Released {
+                at: SimulationTime::from_ticks(3),
+            },
+        }],
+    );
+    assert_eq!(
+        model.apply_runtime_control_update(repeat_reservation),
+        Err(ModelError::InvalidReservationTransition {
+            reservation: reservation_id,
+        })
+    );
+
+    let repeat_wakeup = runtime_update(
+        RuntimeControlSource::Tooling,
+        SimulationTime::from_ticks(3),
+        [RuntimeControlChange::TransitionWakeup {
+            wakeup: wakeup_id,
+            transition: WakeupTerminalTransition::Skipped {
+                at: SimulationTime::from_ticks(3),
+                reason: StaleWakeupReason::Superseded,
+            },
+        }],
+    );
+    assert_eq!(
+        model.apply_runtime_control_update(repeat_wakeup),
+        Err(ModelError::InvalidWakeupTransition { wakeup: wakeup_id })
+    );
+}
+
+#[test]
+fn hard_commit_can_apply_control_changes_atomically() {
+    let mut model = WorldModel::new();
+    let tx = transaction(60);
+    let wakeup_id = scheduled_wakeup(60);
+    let commit = must_ok(AcceptedHardCommit::with_control_changes(
+        transaction_commit(tx, SimulationTime::from_ticks(1), None),
+        [],
+        [HardStateChange::insert_entity(entity(60), None, None)],
+        [schedule_wakeup_change(
+            wakeup_record(
+                wakeup_id,
+                WakeupOrderKey::new(SimulationTime::from_ticks(2), 0, 0, 0),
+                WakeupTarget::HostInputOpportunity,
+            ),
+            SimulationTime::from_ticks(1),
+        )],
+        hard_and_control_invalidation(tx, [StoreFamily::World]),
+    ));
+
+    must_ok(model.apply_hard_commit(commit));
+
+    assert!(model.world_store().contains_entity(entity(60)));
+    assert!(
+        model
+            .runtime_control_store()
+            .scheduled_wakeup(wakeup_id)
+            .is_some()
+    );
+    assert_eq!(model.runtime_control_store().update_count(), 0);
+}
+
+#[test]
+fn hard_commit_with_control_changes_requires_control_invalidation() {
+    let mut model = WorldModel::new();
+    let tx = transaction(65);
+    let commit = must_ok(AcceptedHardCommit::with_control_changes(
+        transaction_commit(tx, SimulationTime::from_ticks(1), None),
+        [],
+        [HardStateChange::insert_entity(entity(65), None, None)],
+        [create_process_change(
+            process_record(process(65)),
+            SimulationTime::from_ticks(1),
+        )],
+        hard_invalidation(tx, [StoreFamily::World]),
+    ));
+
+    assert_eq!(
+        model.apply_hard_commit(commit),
+        Err(ModelError::MissingHardCommitAuthorityInvalidation {
+            transaction: tx,
+            authority: AuthorityClass::RuntimeControl,
+        })
+    );
+    assert!(model.world_store().is_empty());
+    assert!(model.event_history().is_empty());
+    assert!(model.runtime_control_store().is_empty());
 }
 
 #[test]

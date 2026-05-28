@@ -1,6 +1,6 @@
 use world_core::{CausalTransactionId, DefinitionId, EntityId, EventRecordId};
 use world_defs::{BindingRuleKind, RequirementKind, RoleName};
-use world_model::{DerivedViewInvalidationReport, RelationFamily};
+use world_model::{DerivedViewInvalidationReport, RelationFamily, ReservationTarget};
 
 /// Result of accepted runtime work that reached a domain outcome.
 #[non_exhaustive]
@@ -135,6 +135,11 @@ pub enum RejectionReason {
         family: RelationFamily,
         /// Relation object.
         object: EntityId,
+    },
+    /// Runtime validation found an active reservation for the same target.
+    ReservationAlreadyHeld {
+        /// Target that is already reserved.
+        target: ReservationTarget,
     },
 }
 

@@ -1,6 +1,6 @@
 use world_core::{DefinitionId, VersionAnchor};
 
-use crate::error::{DefinitionError, require_not_empty};
+use crate::error::{DefinitionError, empty_definition_field};
 use crate::keys::DefinitionName;
 
 /// Checked semantic declaration family.
@@ -101,7 +101,13 @@ impl SemanticDeclarationDef {
         version: VersionAnchor,
     ) -> Result<Self, DefinitionError> {
         let outputs = outputs.into_iter().collect::<Vec<_>>();
-        require_not_empty(id, "SemanticDeclarationDef", "outputs", &outputs)?;
+        if outputs.is_empty() {
+            return Err(empty_definition_field(
+                id,
+                "SemanticDeclarationDef",
+                "outputs",
+            ));
+        }
 
         for output in &outputs {
             if !kind_allows_output(kind, *output) {

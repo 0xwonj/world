@@ -1,7 +1,10 @@
 use thiserror::Error;
-use world_core::{CausalTransactionId, DefinitionId, EntityId, EventRecordId};
-use world_defs::{EffectKind, EventRecordSpec, RoleName, StagePermission};
-use world_model::{ModelError, RelationFamily};
+use world_core::{
+    CausalTransactionId, DefinitionId, EntityId, EventRecordId, ProcessInstanceId, ReservationId,
+    ScheduledWakeupId,
+};
+use world_defs::{EffectKind, EventRecordSpec, ResolutionTier, RoleName, StagePermission};
+use world_model::{ModelError, ProcessLifecycle, RelationFamily, TransactionCause, WakeupTarget};
 
 /// Error returned by runtime infrastructure while executing causal work.
 #[non_exhaustive]
@@ -97,6 +100,15 @@ pub enum RuntimeError {
     /// Event id issuer is exhausted.
     #[error("event record id issuer is exhausted")]
     EventIdExhausted,
+    /// Process instance id issuer is exhausted.
+    #[error("process instance id issuer is exhausted")]
+    ProcessInstanceIdExhausted,
+    /// Reservation id issuer is exhausted.
+    #[error("reservation id issuer is exhausted")]
+    ReservationIdExhausted,
+    /// Scheduled wakeup id issuer is exhausted.
+    #[error("scheduled wakeup id issuer is exhausted")]
+    ScheduledWakeupIdExhausted,
     /// Event id appeared more than once in a staged transaction.
     #[error("event {} was emitted more than once in transaction {}", .event.get(), .transaction.get())]
     DuplicateStagedEvent {
@@ -104,6 +116,73 @@ pub enum RuntimeError {
         transaction: CausalTransactionId,
         /// Duplicated event id.
         event: EventRecordId,
+    },
+    /// Process transaction finalization received a non-process transaction cause.
+    #[error("process transaction finalizer received non-process cause {cause:?}")]
+    InvalidProcessTransactionCause {
+        /// Unexpected transaction cause.
+        cause: TransactionCause,
+    },
+    /// Eventless process tick finalization received staged events.
+    #[error("eventless process tick transaction staged event records")]
+    EventlessProcessTickEmittedEvents,
+    /// A process definition is missing from the definition registry.
+    #[error("process definition {} is missing", .definition.get())]
+    MissingProcessDefinition {
+        /// Missing process definition.
+        definition: DefinitionId,
+    },
+    /// A process start request repeated the same role binding.
+    #[error("process start request carries duplicate role binding {role}")]
+    DuplicateProcessRoleBinding {
+        /// Duplicated role.
+        role: RoleName,
+    },
+    /// A process start request supplied a role the process definition does not declare.
+    #[error("process start request carries unknown role binding {role}")]
+    UnknownProcessRoleBinding {
+        /// Unknown role.
+        role: RoleName,
+    },
+    /// A process definition does not support the requested resolution tier.
+    #[error("process definition {} does not support resolution {resolution:?}", .definition.get())]
+    UnsupportedProcessResolution {
+        /// Process definition being started or advanced.
+        definition: DefinitionId,
+        /// Requested resolution tier.
+        resolution: ResolutionTier,
+    },
+    /// A scheduled process wakeup referenced a process that is not stored.
+    #[error("process {} is missing", .process.get())]
+    MissingProcess {
+        /// Missing process instance.
+        process: ProcessInstanceId,
+    },
+    /// A scheduled wakeup referenced by runtime control is missing.
+    #[error("scheduled wakeup {} is missing", .wakeup.get())]
+    MissingScheduledWakeup {
+        /// Missing scheduled wakeup.
+        wakeup: ScheduledWakeupId,
+    },
+    /// Scheduler cannot dispatch this wakeup target.
+    #[error("unsupported wakeup target {target:?}")]
+    UnsupportedWakeupTarget {
+        /// Unsupported target.
+        target: WakeupTarget,
+    },
+    /// A process cannot accept the requested lifecycle transition.
+    #[error("process {} cannot transition from lifecycle {lifecycle:?}", .process.get())]
+    InvalidProcessLifecycleTransition {
+        /// Process instance being transitioned.
+        process: ProcessInstanceId,
+        /// Current lifecycle state.
+        lifecycle: ProcessLifecycle,
+    },
+    /// A reservation lifecycle transition requires an active held reservation.
+    #[error("reservation {} is not held", .reservation.get())]
+    ReservationNotHeld {
+        /// Reservation being transitioned.
+        reservation: ReservationId,
     },
     /// Model storage rejected an accepted commit package.
     #[error(transparent)]

@@ -17,7 +17,7 @@ pub use commit::{
 pub use error::ModelError;
 pub use history::{
     EventHistoryStore, EventRecord, EventRoleBinding, StoredEventRecord, StoredTransactionRecord,
-    TransactionRecord,
+    TransactionCause, TransactionRecord,
 };
 pub use invalidation::{
     DerivedViewDescriptor, DerivedViewInvalidationReport, DerivedViewKey, DerivedViewRegistry,
@@ -30,7 +30,18 @@ pub use records::{
     EpistemicHolder, EpistemicRecord, EpistemicStore, SocialInstitutionalStore, SocialRecord,
 };
 pub use relations::{RelationFamily, RelationKey, RelationRecord, RelationStore};
-pub use runtime_control::{RuntimeControlRecord, RuntimeControlRecordKind, RuntimeControlStore};
+pub use runtime_control::{
+    AcceptedRuntimeControlUpdate, InterruptReason, PauseReason, ProcessFailureReason,
+    ProcessInstanceInit, ProcessInstanceRecord, ProcessLifecycle, ProcessProgress,
+    ProcessRoleBinding, ProcessStateSnapshot, ProcessStateValue, ProcessWork,
+    ReservationCancelReason, ReservationHolder, ReservationRecord, ReservationState,
+    ReservationTarget, ReservationTransition, RuntimeControlApplication, RuntimeControlChange,
+    RuntimeControlRecord, RuntimeControlRecordKind, RuntimeControlRecordPayload,
+    RuntimeControlSource, RuntimeControlStore, RuntimeControlUpdateHeader,
+    RuntimeControlUpdateRecord, ScheduledWakeupRecord, ScheduledWakeupStatus, StaleWakeupReason,
+    StoredRuntimeControlUpdate, WaitCondition, WakeupCancellationReason, WakeupConsumptionReason,
+    WakeupTarget, WakeupTerminalTransition,
+};
 pub use store::{AuthorityRead, EntitySnapshot, StoreFamily, WorldStore};
 
 #[cfg(test)]

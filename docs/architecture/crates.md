@@ -365,20 +365,25 @@ Must not own:
 Design notes:
 
 - `WorldModel` hosts stores, but does not make every store directly mutable
-- the current public model surface is read-first; external callers can inspect
-  stores and query labels, but cannot write committed hard, runtime-control, or
-  accepted non-hard records directly
+- the current public model surface is read-first except for accepted-package
+  receiver methods; those methods are storage receivers, not a normal game
+  system mutation API
+- accepted package constructors live in this crate so `world-runtime` can
+  produce values for the receiver methods, but those constructors are not a
+  broad extension surface
 - query APIs return ids, value snapshots, read tokens, or derived views
 - broad `&mut WorldModel` access should stay inside authority gates
 - `EventHistoryStore` is a committed-history facade, not a generated-history
   owner
 - `RuntimeControlStore` stores runtime control state, but updates arrive
   through runtime-control gates or transaction-coupled updates
+- source allowlist tests protect the intended accepted-package producer and
+  receiver paths until a stricter crate/capability boundary is needed
 - Phase 3 invalidation package types describe changed authority classes,
   changed store families, directly affected derived views, and view staleness;
   detailed dependency ranges belong to later dependency modeling
-- model-side apply APIs, when added, are storage receivers, not causal
-  transaction construction or validation authority
+- model-side apply APIs are storage receivers, not causal transaction
+  construction or runtime semantic authority
 
 ### `world-runtime`
 
@@ -387,12 +392,10 @@ Owns hard mutation discipline and durable runtime control execution.
 Likely modules:
 
 ```text
-action
-transaction
-effects
-runtime_control
-scheduler
-process
+transaction/
+process/
+scheduler/
+control/
 resolution
 reaction
 outcome
@@ -440,6 +443,11 @@ Design notes:
   `TypedEffectInterpreter`, and `CausalRuntime` as modules at first
 - do not split them into crates until their internal interfaces stabilize
 - runtime code stages mutation through transaction or runtime-control APIs
+- runtime code is the normal producer of accepted hard commits and
+  runtime-control updates
+- standard-library and game-system code should compose checked definitions,
+  typed effects, and trusted semantics installers rather than calling model
+  receiver methods or accepted-package constructors directly
 - no semantic decision crate dependency is allowed
 - ordinary gameplay outcomes are domain results, not infrastructure errors
 

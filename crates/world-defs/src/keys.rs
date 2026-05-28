@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::error::DefinitionError;
+
 macro_rules! string_key {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
@@ -8,9 +10,9 @@ macro_rules! string_key {
 
         impl $name {
             /// Creates a key from non-empty text after trimming outer whitespace.
-            pub fn new(value: impl Into<String>) -> Option<Self> {
-                let value = value.into();
-                let value = value.trim();
+            #[must_use]
+            pub fn new(value: impl AsRef<str>) -> Option<Self> {
+                let value = value.as_ref().trim();
 
                 if value.is_empty() {
                     None
@@ -22,6 +24,31 @@ macro_rules! string_key {
             /// Returns the normalized key text.
             pub fn as_str(&self) -> &str {
                 &self.0
+            }
+        }
+
+        impl TryFrom<&str> for $name {
+            type Error = DefinitionError;
+
+            fn try_from(value: &str) -> Result<Self, Self::Error> {
+                Self::new(value).ok_or(DefinitionError::EmptyItemField {
+                    type_name: stringify!($name),
+                    field: "value",
+                })
+            }
+        }
+
+        impl TryFrom<String> for $name {
+            type Error = DefinitionError;
+
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                Self::try_from(value.as_str())
+            }
+        }
+
+        impl AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                self.as_str()
             }
         }
 

@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use world_core::{
-    CausalSource, CausalTransactionId, DefinitionId, EntityId, EventRecordId, ProvenanceKey,
-    ReplayLevel, SimulationTime, StoreCursor,
+    CausalSource, CausalTransactionId, DefinitionId, EntityId, EventRecordId, ProcessInstanceId,
+    ProvenanceKey, ReplayLevel, ScheduledWakeupId, SimulationTime, StoreCursor,
 };
-use world_defs::{EventRecordSpec, RoleName};
+use world_defs::{EventRecordSpec, ResolutionTier, RoleName};
 
 use crate::ModelError;
 
@@ -13,11 +13,58 @@ use crate::ModelError;
 pub struct TransactionRecord {
     id: CausalTransactionId,
     source: CausalSource,
-    action: DefinitionId,
-    effect_program: DefinitionId,
+    cause: TransactionCause,
     replay_level: ReplayLevel,
     occurred_at: SimulationTime,
     provenance: Option<ProvenanceKey>,
+}
+
+/// Runtime cause for a committed transaction.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TransactionCause {
+    /// A player, actor-policy, tooling, or engine action request.
+    Action {
+        /// Action definition accepted by runtime validation.
+        action: DefinitionId,
+        /// Effect program interpreted for this transaction.
+        effect_program: DefinitionId,
+    },
+    /// A scheduler-selected durable process tick.
+    ///
+    /// This records the tick that actually occurred, not every definition-level
+    /// program that could implement it. When a process tick executes an
+    /// interpreted effect program, record that through explicit execution
+    /// metadata instead of making `effect_program` mandatory for all process
+    /// ticks.
+    ProcessTick {
+        /// Process instance advanced by the tick.
+        process: ProcessInstanceId,
+        /// Process definition used to select tick semantics.
+        process_definition: DefinitionId,
+        /// Resolution tier used by the process instance.
+        resolution: ResolutionTier,
+        /// Scheduled wakeup consumed by this tick.
+        wakeup: ScheduledWakeupId,
+    },
+}
+
+impl TransactionCause {
+    /// Returns the action definition for action-request transactions.
+    pub const fn action(self) -> Option<DefinitionId> {
+        match self {
+            Self::Action { action, .. } => Some(action),
+            Self::ProcessTick { .. } => None,
+        }
+    }
+
+    /// Returns the effect program associated with action-request transactions.
+    pub const fn effect_program(self) -> Option<DefinitionId> {
+        match self {
+            Self::Action { effect_program, .. } => Some(effect_program),
+            Self::ProcessTick { .. } => None,
+        }
+    }
 }
 
 impl TransactionRecord {
@@ -31,14 +78,19 @@ impl TransactionRecord {
         self.source
     }
 
-    /// Returns the action definition accepted by runtime validation.
-    pub const fn action(&self) -> DefinitionId {
-        self.action
+    /// Returns the runtime cause for this transaction.
+    pub const fn cause(&self) -> TransactionCause {
+        self.cause
     }
 
-    /// Returns the effect program definition interpreted for this transaction.
-    pub const fn effect_program(&self) -> DefinitionId {
-        self.effect_program
+    /// Returns the action definition for action-request transactions.
+    pub const fn action(&self) -> Option<DefinitionId> {
+        self.cause.action()
+    }
+
+    /// Returns the effect program associated with action-request transactions.
+    pub const fn effect_program(&self) -> Option<DefinitionId> {
+        self.cause.effect_program()
     }
 
     /// Returns declared replay strength for this transaction.
@@ -61,8 +113,7 @@ impl TransactionRecord {
     pub(crate) const fn new(
         id: CausalTransactionId,
         source: CausalSource,
-        action: DefinitionId,
-        effect_program: DefinitionId,
+        cause: TransactionCause,
         replay_level: ReplayLevel,
         occurred_at: SimulationTime,
         provenance: Option<ProvenanceKey>,
@@ -70,8 +121,7 @@ impl TransactionRecord {
         Self {
             id,
             source,
-            action,
-            effect_program,
+            cause,
             replay_level,
             occurred_at,
             provenance,
