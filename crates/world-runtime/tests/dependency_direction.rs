@@ -6,6 +6,20 @@ use std::{
 
 const FORBIDDEN_EDGES: &[(&str, &[&str])] = &[
     (
+        "world-core",
+        &[
+            "world-defs",
+            "world-model",
+            "world-runtime",
+            "world-standard",
+            "world-standard-runtime",
+            "world-context",
+            "world-decision",
+            "world-authoring",
+            "world-engine",
+        ],
+    ),
+    (
         "world-defs",
         &[
             "world-model",
@@ -51,11 +65,16 @@ const FORBIDDEN_EDGES: &[(&str, &[&str])] = &[
     ),
     (
         "world-context",
-        &["world-runtime", "world-standard-runtime"],
+        &[
+            "world-runtime",
+            "world-standard-runtime",
+            "world-decision",
+            "world-authoring",
+        ],
     ),
     (
         "world-decision",
-        &["world-runtime", "world-standard-runtime"],
+        &["world-model", "world-runtime", "world-standard-runtime"],
     ),
     (
         "world-authoring",
@@ -63,6 +82,8 @@ const FORBIDDEN_EDGES: &[(&str, &[&str])] = &[
             "world-model",
             "world-runtime",
             "world-standard-runtime",
+            "world-context",
+            "world-decision",
             "world-engine",
         ],
     ),

@@ -219,9 +219,9 @@ world-model -> world-runtime, world-standard, world-standard-runtime, world-cont
 world-runtime -> world-standard, world-standard-runtime, world-context, or world-decision
 world-standard -> world-model, world-runtime, world-standard-runtime, world-context, or world-decision
 world-standard-runtime -> world-context or world-decision
-world-context -> world-runtime
-world-decision -> world-runtime
-world-authoring -> world-model, world-runtime, world-standard-runtime, or world-engine
+world-context -> world-runtime, world-standard-runtime, world-decision, or world-authoring
+world-decision -> world-model, world-runtime, or world-standard-runtime
+world-authoring -> world-model, world-runtime, world-standard-runtime, world-context, world-decision, or world-engine
 ```
 
 The most important rule is:
@@ -535,16 +535,25 @@ Owns actor-relative context projection and readable decision inputs.
 
 Likely contents:
 
-- `ObservationPipeline`
-- `ObservedState`
-- `ObservedEvent`
-- `ActorContextPipeline`
-- `CapabilitySet`
-- `ActionRepertoire`
-- `PerceivedAffordance`
-- `EpistemicWorkingSet`
-- `SocialContextView`
-- context provenance and explanation summaries
+- root entry point and request types:
+  - `ActorContextPipeline`
+  - `ActorContextInput`
+  - `ActorContextRequest`
+- context aggregate:
+  - `ActorContext`
+  - `ActorContextProjection`
+  - `ContextProjectionReport`
+- projection families:
+  - `ObservationContext`, `ObservedState`, `ObservedEvent`
+  - `EpistemicWorkingSet`
+  - `SocialContextView`
+  - `CapabilitySet`
+  - `ActionRepertoire`
+  - `PerceivedAffordance`
+- evidence metadata:
+  - read dependencies
+  - provenance anchors
+  - projection status and diagnostics
 
 Allowed dependencies:
 

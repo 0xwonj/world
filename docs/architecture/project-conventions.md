@@ -185,6 +185,82 @@ Pack authoring and verification need source-aware diagnostics. Runtime crates
 need typed errors and inspectable outcomes, not parser-specific renderer
 types.
 
+### Test Placement Policy
+
+Place tests by the boundary they protect, not by current convenience.
+
+Use crate `tests/` for black-box tests that should see the crate like an
+external user or neighboring crate.
+
+Put these in `tests/`:
+
+- public API contract tests
+- public re-export surface tests
+- cross-crate behavior tests that use only public APIs
+- crate dependency-direction guardrails
+- public authority-boundary guardrails
+- manifest or source guardrails that protect workspace-level architecture
+
+Use `src/tests.rs` or `src/tests/` for white-box tests that need crate-private
+or module-private access to protect internal invariants.
+
+Put these in `src/tests`:
+
+- private store and verifier invariants
+- internal apply-plan or preflight atomicity checks
+- `pub(crate)` constructor and receiver discipline
+- crate-local implementation guardrails tied to private module layout
+- behavior tests that require private fixtures and would become weaker through
+  only public API observation
+
+Do not add inline `#[cfg(test)] mod tests` blocks inside production modules.
+Even leaf-module tests should live in `src/tests.rs` or `src/tests/<topic>.rs`.
+This keeps production modules focused on runtime/library code and makes test
+ownership visible at the crate level.
+
+Root `#[cfg(test)] mod tests;` declarations are allowed to load `src/tests.rs`
+or `src/tests/mod.rs`. Test-only support code inside production modules should
+be rare, minimal, and used only when a private invariant cannot be tested
+without it.
+
+Guardrail placement follows the same rule:
+
+- public or cross-crate boundary guardrail: `tests/`
+- private implementation discipline guardrail: `src/tests/guardrails.rs`
+
+Source or manifest scanners must include focused tests for the scanner itself,
+such as comment/string masking, renamed dependency handling, or token
+normalization. A scanner guardrail without parser/scanner tests gives false
+confidence.
+
+Test fixtures should not force production APIs to become public. Use
+`src/tests/helpers.rs` for private fixtures and `tests/helpers.rs` only for
+fixtures that can be built through public APIs.
+
+Test names should describe behavior, not project-management state.
+
+Prefer:
+
+```text
+hard_commit_application_is_atomic_when_late_storage_checks_fail
+definition_schema_candidates_do_not_populate_capabilities
+crate_dependency_direction_matches_architecture
+```
+
+Avoid:
+
+```text
+works
+test_new_logic
+test_fix
+```
+
+Reason:
+
+Tests are part of the architecture boundary. Black-box tests protect public
+contracts, while white-box tests protect invariants that should not become
+public API just to be tested.
+
 ### Runtime Handle Policy
 
 `slotmap` is the preferred candidate for runtime handles when handles are
