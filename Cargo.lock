@@ -83,6 +83,7 @@ version = "0.0.0"
 name = "world-decision"
 version = "0.0.0"
 dependencies = [
+ "thiserror",
  "world-context",
  "world-core",
  "world-defs",

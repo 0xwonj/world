@@ -8,6 +8,7 @@ publish.workspace = true
 world-core = { path = "../world-core" }
 world-defs = { path = "../world-defs" }
 world-context = { path = "../world-context" }
+thiserror.workspace = true
 
 [lints]
 workspace = true
