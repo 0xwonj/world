@@ -94,8 +94,29 @@ pub struct ActorContextProjection {
 }
 
 impl ActorContextProjection {
-    pub(crate) fn new(context: ActorContext, report: ContextProjectionReport) -> Self {
+    pub(crate) const fn new(context: ActorContext, report: ContextProjectionReport) -> Self {
         Self { context, report }
+    }
+
+    /// Creates an empty actor-context projection.
+    ///
+    /// Normal model-backed projection should use `ActorContextPipeline`. This
+    /// constructor is for tests and orchestration paths that need an explicit
+    /// empty actor-relative snapshot without model reads.
+    #[must_use]
+    pub fn empty(actor: ActorId) -> Self {
+        Self::new(
+            ActorContext::new(
+                actor,
+                ObservationContext::empty(),
+                EpistemicWorkingSet::default(),
+                SocialContextView::empty(),
+                CapabilitySet::default(),
+                ActionRepertoire::default(),
+                Vec::new(),
+            ),
+            ContextProjectionReport::default(),
+        )
     }
 
     /// Returns the projected actor context.

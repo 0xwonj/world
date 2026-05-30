@@ -41,6 +41,22 @@ pub enum DecisionError {
         /// Duplicated trace-local artifact ref.
         artifact: DecisionArtifactRef,
     },
+    /// A trace step references an artifact that is not present in the trace.
+    #[error("decision trace references missing artifact {}", .artifact.get())]
+    MissingTraceArtifact {
+        /// Missing trace-local artifact ref.
+        artifact: DecisionArtifactRef,
+    },
+    /// A trace step declares an output not produced by that step.
+    #[error("decision trace step {} output artifact {} has producer {producer:?}", .pass.get(), .artifact.get())]
+    TraceOutputProducerMismatch {
+        /// Step pass id.
+        pass: DefinitionId,
+        /// Output artifact ref.
+        artifact: DecisionArtifactRef,
+        /// Recorded artifact producer.
+        producer: Option<DefinitionId>,
+    },
     /// A pass or trace references an unknown representation kind.
     #[error("decision definition {} references missing representation kind {}", .owner.get(), .kind.get())]
     MissingRepresentationKind {
@@ -56,6 +72,12 @@ pub enum DecisionError {
         profile: DefinitionId,
         /// Missing pass id.
         pass: DefinitionId,
+    },
+    /// A run request references an unknown decision profile.
+    #[error("decision profile {} is not registered", .profile.get())]
+    MissingProfile {
+        /// Missing profile id.
+        profile: DefinitionId,
     },
     /// A representation kind cannot satisfy the requested broad role.
     #[error("decision definition {} requires representation kind {} to provide role {role:?}", .owner.get(), .kind.get())]
@@ -223,6 +245,148 @@ pub enum DecisionError {
         /// Profile that requires oracle involvement.
         profile: DefinitionId,
     },
+    /// A profile exit declaration has no satisfiable terminal output.
+    #[error("decision profile {} cannot satisfy terminal output role {role:?}", .profile.get())]
+    MissingProfileOutput {
+        /// Profile being validated.
+        profile: DefinitionId,
+        /// Required terminal role.
+        role: RepresentationRole,
+        /// Required concrete representation kind, if any.
+        kind: Option<DefinitionId>,
+    },
+    /// A profile exit declaration has more than one matching terminal output.
+    #[error("decision profile {} terminal output role {role:?} is ambiguous across {matches} sources", .profile.get())]
+    AmbiguousProfileOutput {
+        /// Profile being validated.
+        profile: DefinitionId,
+        /// Required terminal role.
+        role: RepresentationRole,
+        /// Required concrete representation kind, if any.
+        kind: Option<DefinitionId>,
+        /// Number of matching terminal sources.
+        matches: usize,
+    },
+    /// A run tried to abstain from a profile that does not permit abstention.
+    #[error("decision profile {} does not allow abstention", .profile.get())]
+    AbstentionNotAllowed {
+        /// Profile being executed.
+        profile: DefinitionId,
+    },
+    /// A pass executor is registered more than once for the same pass and mode.
+    #[error("decision executor for pass {} mode {mode:?} is registered more than once", .pass.get())]
+    DuplicateExecutor {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Implementation mode.
+        mode: ImplementationMode,
+    },
+    /// A pass executor references an unknown pass.
+    #[error("decision executor references missing pass {}", .pass.get())]
+    MissingExecutorPass {
+        /// Missing pass id.
+        pass: DefinitionId,
+    },
+    /// A profile step has no installed executor.
+    #[error("decision profile {} pass {} mode {mode:?} has no executor", .profile.get(), .pass.get())]
+    MissingExecutor {
+        /// Profile being executed.
+        profile: DefinitionId,
+        /// Pass id.
+        pass: DefinitionId,
+        /// Implementation mode.
+        mode: ImplementationMode,
+    },
+    /// An executor is installed for a mode its pass does not support.
+    #[error("decision executor for pass {} uses unsupported mode {mode:?}", .pass.get())]
+    ExecutorModeUnsupported {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Unsupported mode.
+        mode: ImplementationMode,
+    },
+    /// A pass executor returned metadata for a different mode.
+    #[error("decision pass {} returned metadata mode {actual:?}, expected {expected:?}", .pass.get())]
+    ExecutionModeMismatch {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Expected mode.
+        expected: ImplementationMode,
+        /// Actual mode.
+        actual: ImplementationMode,
+    },
+    /// A pass executor returned metadata for a different determinism policy.
+    #[error("decision pass {} returned determinism {actual:?}, expected {expected:?}", .pass.get())]
+    ExecutionDeterminismMismatch {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Expected determinism.
+        expected: DeterminismPolicy,
+        /// Actual determinism.
+        actual: DeterminismPolicy,
+    },
+    /// A seeded pass execution omitted seed metadata.
+    #[error("decision pass {} requires seed metadata", .pass.get())]
+    MissingSeedMetadata {
+        /// Pass id.
+        pass: DefinitionId,
+    },
+    /// An LLM or hybrid pass execution omitted model metadata.
+    #[error("decision pass {} requires model metadata", .pass.get())]
+    MissingModelMetadata {
+        /// Pass id.
+        pass: DefinitionId,
+    },
+    /// An oracle pass execution omitted oracle metadata.
+    #[error("decision pass {} requires oracle metadata", .pass.get())]
+    MissingOracleMetadata {
+        /// Pass id.
+        pass: DefinitionId,
+    },
+    /// A replay pass execution omitted replay metadata.
+    #[error("decision pass {} requires replay metadata", .pass.get())]
+    MissingReplayMetadata {
+        /// Pass id.
+        pass: DefinitionId,
+    },
+    /// A pass executor returned metadata that is not allowed for this mode or policy.
+    #[error("decision pass {} returned unexpected {field} metadata", .pass.get())]
+    UnexpectedExecutionMetadata {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Unexpected metadata field.
+        field: &'static str,
+    },
+    /// A pass executor produced an output not declared by its contract.
+    #[error("decision pass {} produced undeclared output role {role:?} kind {}", .pass.get(), .kind.get())]
+    UndeclaredExecutorOutput {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Produced role.
+        role: RepresentationRole,
+        /// Produced representation kind.
+        kind: DefinitionId,
+    },
+    /// A pass executor did not produce a required output.
+    #[error("decision pass {} did not produce required output role {role:?} kind {}", .pass.get(), .kind.get())]
+    MissingExecutorOutput {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Missing role.
+        role: RepresentationRole,
+        /// Missing representation kind.
+        kind: DefinitionId,
+    },
+    /// A pass executor produced the same output contract more than once.
+    #[error("decision pass {} produced duplicate output role {role:?} kind {}", .pass.get(), .kind.get())]
+    DuplicateExecutorOutput {
+        /// Pass id.
+        pass: DefinitionId,
+        /// Duplicated role.
+        role: RepresentationRole,
+        /// Duplicated representation kind.
+        kind: DefinitionId,
+    },
 }
 
 pub(crate) fn empty_definition_field(
@@ -239,4 +403,16 @@ pub(crate) fn empty_definition_field(
 
 pub(crate) fn empty_item_field(type_name: &'static str, field: &'static str) -> DecisionError {
     DecisionError::EmptyItemField { type_name, field }
+}
+
+pub(crate) fn require_not_empty(
+    type_name: &'static str,
+    field: &'static str,
+    value: &str,
+) -> Result<(), DecisionError> {
+    if value.trim().is_empty() {
+        Err(empty_item_field(type_name, field))
+    } else {
+        Ok(())
+    }
 }

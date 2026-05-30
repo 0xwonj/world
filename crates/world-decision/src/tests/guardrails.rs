@@ -3,6 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const FORBIDDEN_CRATES: [&str; 3] = ["world_model", "world_runtime", "world_standard_runtime"];
+const FORBIDDEN_PACKAGES: [&str; 3] = ["world-model", "world-runtime", "world-standard-runtime"];
+
 #[test]
 fn decision_source_does_not_import_privileged_crates() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -11,7 +14,6 @@ fn decision_source_does_not_import_privileged_crates() {
     collect_rust_files(&source_root, &mut rust_files);
     rust_files.sort();
 
-    let forbidden = ["world_model", "world_runtime", "world_standard_runtime"];
     let mut violations = Vec::new();
 
     for file in rust_files {
@@ -20,7 +22,7 @@ fn decision_source_does_not_import_privileged_crates() {
         let code = code_without_comments_or_strings(&source);
         let normalized = normalize_tokens(&code);
 
-        for pattern in forbidden {
+        for pattern in FORBIDDEN_CRATES {
             if normalized.contains(pattern) {
                 violations.push(format!(
                     "{} imports privileged crate `{pattern}`",
@@ -44,6 +46,22 @@ fn decision_source_does_not_import_privileged_crates() {
 }
 
 #[test]
+fn decision_manifest_does_not_depend_on_privileged_packages() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = manifest_dir.join("Cargo.toml");
+    let source = fs::read_to_string(&manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
+
+    let violations = forbidden_manifest_dependencies(&source);
+
+    assert!(
+        violations.is_empty(),
+        "world-decision must not gain model/runtime authority dependencies:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
 fn source_scanner_ignores_comments_and_strings_but_catches_code() {
     let source = r##"
         // use world_model::WorldModel;
@@ -58,6 +76,27 @@ fn source_scanner_ignores_comments_and_strings_but_catches_code() {
     assert!(!masked.contains("world_runtime"));
     assert!(!masked.contains("world_standard_runtime"));
     assert!(normalized.contains("world_model::WorldModel"));
+}
+
+#[test]
+fn manifest_scanner_catches_renamed_and_target_dependencies() {
+    let source = r#"
+        [dependencies]
+        world-model = { path = "../world-model" }
+
+        [dev-dependencies]
+        runtime_alias = { package = "world-runtime", path = "../world-runtime" }
+
+        [target.'cfg(test)'.build-dependencies]
+        standard = { package = "world-standard-runtime", path = "../world-standard-runtime" }
+    "#;
+
+    let violations = forbidden_manifest_dependencies(source);
+
+    assert_eq!(violations.len(), 3);
+    assert!(violations[0].contains("world-model"));
+    assert!(violations[1].contains("world-runtime"));
+    assert!(violations[2].contains("world-standard-runtime"));
 }
 
 fn collect_rust_files(root: &Path, files: &mut Vec<PathBuf>) {
@@ -81,6 +120,63 @@ fn normalize_tokens(source: &str) -> String {
         .chars()
         .filter(|character| !character.is_whitespace())
         .collect()
+}
+
+fn forbidden_manifest_dependencies(source: &str) -> Vec<String> {
+    let mut violations = Vec::new();
+    let mut table = None;
+
+    for line in source.lines() {
+        let line = manifest_code_line(line);
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(header) = trimmed
+            .strip_prefix('[')
+            .and_then(|line| line.strip_suffix(']'))
+        {
+            table = Some(header.trim().to_owned());
+            continue;
+        }
+        if !table.as_deref().is_some_and(is_dependency_table) {
+            continue;
+        }
+
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        let name = name.trim().trim_matches('"').trim_matches('\'');
+        for package in FORBIDDEN_PACKAGES {
+            if name == package || manifest_dependency_renames_to(value, package) {
+                violations.push(format!(
+                    "dependency table [{}] references forbidden package `{package}`",
+                    table.as_deref().unwrap_or_default()
+                ));
+            }
+        }
+    }
+
+    violations
+}
+
+fn is_dependency_table(table: &str) -> bool {
+    matches!(
+        table,
+        "dependencies" | "dev-dependencies" | "build-dependencies"
+    ) || table.ends_with(".dependencies")
+        || table.ends_with(".dev-dependencies")
+        || table.ends_with(".build-dependencies")
+}
+
+fn manifest_dependency_renames_to(value: &str, package: &str) -> bool {
+    let package_assignment = format!("package=\"{package}\"");
+    normalize_tokens(value).contains(&package_assignment)
+}
+
+fn manifest_code_line(line: &str) -> &str {
+    line.split_once('#')
+        .map_or(line, |(before_comment, _)| before_comment)
 }
 
 fn code_without_comments_or_strings(source: &str) -> String {

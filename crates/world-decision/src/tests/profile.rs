@@ -1,8 +1,8 @@
 use world_context::ContextProjectionKind;
 
 use crate::{
-    DecisionError, DecisionProfile, DecisionProfileStep, ImplementationMode, ProfileOraclePolicy,
-    TracePolicy,
+    DecisionError, DecisionProfile, DecisionProfileExit, DecisionProfileOutput,
+    DecisionProfileStep, ImplementationMode, ProfileOraclePolicy, RepresentationRole,
 };
 
 use super::helpers::{id, name, profile, version};
@@ -14,8 +14,8 @@ fn profile_rejects_empty_steps() {
         name("empty"),
         [ContextProjectionKind::Observation],
         [],
+        DecisionProfileExit::terminal(DecisionProfileOutput::new(RepresentationRole::Choice, None)),
         ProfileOraclePolicy::Forbid,
-        TracePolicy::default(),
         version(1),
     );
 

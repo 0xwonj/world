@@ -4,7 +4,10 @@ use world_context::ContextProjectionKind;
 use world_core::{DefinitionId, VersionAnchor};
 use world_defs::DefinitionName;
 
-use crate::{DecisionError, ImplementationMode, TracePolicy, error::empty_definition_field};
+use crate::{
+    DecisionError, ImplementationMode, RepresentationRole,
+    error::{empty_definition_field, empty_item_field},
+};
 
 /// Oracle policy for a checked decision profile.
 #[non_exhaustive]
@@ -59,6 +62,105 @@ impl DecisionProfileStep {
     }
 }
 
+/// Terminal output declaration for a checked decision profile.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DecisionProfileOutput {
+    role: RepresentationRole,
+    kind: Option<DefinitionId>,
+}
+
+impl DecisionProfileOutput {
+    /// Creates a terminal output declaration.
+    #[must_use]
+    pub const fn new(role: RepresentationRole, kind: Option<DefinitionId>) -> Self {
+        Self { role, kind }
+    }
+
+    /// Creates a terminal output declaration for a concrete representation kind.
+    #[must_use]
+    pub const fn kind(role: RepresentationRole, kind: DefinitionId) -> Self {
+        Self {
+            role,
+            kind: Some(kind),
+        }
+    }
+
+    /// Returns the terminal broad role.
+    #[must_use]
+    pub const fn role(self) -> RepresentationRole {
+        self.role
+    }
+
+    /// Returns the terminal concrete kind, if required.
+    #[must_use]
+    pub const fn kind_id(self) -> Option<DefinitionId> {
+        self.kind
+    }
+}
+
+/// Exit contract for a checked decision profile.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecisionProfileExit {
+    output: Option<DecisionProfileOutput>,
+    abstention_allowed: bool,
+}
+
+impl DecisionProfileExit {
+    /// Creates a profile exit contract.
+    pub fn new(
+        output: Option<DecisionProfileOutput>,
+        abstention_allowed: bool,
+    ) -> Result<Self, DecisionError> {
+        if output.is_none() && !abstention_allowed {
+            return Err(empty_item_field("DecisionProfileExit", "output"));
+        }
+
+        Ok(Self {
+            output,
+            abstention_allowed,
+        })
+    }
+
+    /// Creates an exit contract with one required terminal output.
+    #[must_use]
+    pub fn terminal(output: DecisionProfileOutput) -> Self {
+        Self {
+            output: Some(output),
+            abstention_allowed: false,
+        }
+    }
+
+    /// Creates an exit contract that accepts either one terminal output or abstention.
+    #[must_use]
+    pub fn terminal_or_abstain(output: DecisionProfileOutput) -> Self {
+        Self {
+            output: Some(output),
+            abstention_allowed: true,
+        }
+    }
+
+    /// Creates an exit contract that allows abstention without terminal output.
+    #[must_use]
+    pub const fn abstention() -> Self {
+        Self {
+            output: None,
+            abstention_allowed: true,
+        }
+    }
+
+    /// Returns the terminal output declaration, if this profile can complete with one.
+    #[must_use]
+    pub const fn output(&self) -> Option<DecisionProfileOutput> {
+        self.output
+    }
+
+    /// Returns whether the profile may intentionally abstain.
+    #[must_use]
+    pub const fn abstention_allowed(&self) -> bool {
+        self.abstention_allowed
+    }
+}
+
 /// Checked static decision-profile declaration.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecisionProfile {
@@ -66,20 +168,21 @@ pub struct DecisionProfile {
     name: DefinitionName,
     context_inputs: BTreeSet<ContextProjectionKind>,
     steps: Vec<DecisionProfileStep>,
+    exit: DecisionProfileExit,
     oracle_policy: ProfileOraclePolicy,
-    trace_policy: TracePolicy,
     version: VersionAnchor,
 }
 
 impl DecisionProfile {
     /// Creates a checked profile declaration with local invariants.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: DefinitionId,
         name: DefinitionName,
         context_inputs: impl IntoIterator<Item = ContextProjectionKind>,
         steps: impl IntoIterator<Item = DecisionProfileStep>,
+        exit: DecisionProfileExit,
         oracle_policy: ProfileOraclePolicy,
-        trace_policy: TracePolicy,
         version: VersionAnchor,
     ) -> Result<Self, DecisionError> {
         let context_inputs = context_inputs.into_iter().collect::<BTreeSet<_>>();
@@ -93,8 +196,8 @@ impl DecisionProfile {
             name,
             context_inputs,
             steps,
+            exit,
             oracle_policy,
-            trace_policy,
             version,
         })
     }
@@ -122,16 +225,16 @@ impl DecisionProfile {
         &self.steps
     }
 
+    /// Returns profile exit contract.
+    #[must_use]
+    pub const fn exit(&self) -> &DecisionProfileExit {
+        &self.exit
+    }
+
     /// Returns oracle policy metadata.
     #[must_use]
     pub const fn oracle_policy(&self) -> ProfileOraclePolicy {
         self.oracle_policy
-    }
-
-    /// Returns trace metadata.
-    #[must_use]
-    pub const fn trace_policy(&self) -> TracePolicy {
-        self.trace_policy
     }
 
     /// Returns the version anchor.

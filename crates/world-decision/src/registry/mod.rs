@@ -5,6 +5,7 @@ use world_core::DefinitionId;
 use crate::{DecisionError, DecisionPassContract, DecisionProfile, RepresentationKindDef};
 
 mod builder;
+pub(crate) mod flow;
 mod validate;
 
 pub use builder::DecisionRegistryBuilder;

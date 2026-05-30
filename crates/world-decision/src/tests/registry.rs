@@ -8,8 +8,9 @@ use crate::{
 };
 
 use super::helpers::{
-    id, pass, pass_with_metadata, profile, profile_with_policy, representation,
-    representation_with_metadata, seed_profile_registry, valid_two_step_registry,
+    id, pass, pass_with_metadata, profile, profile_with_exit_and_policy, profile_with_policy,
+    profile_with_terminal, representation, representation_with_metadata, seed_profile_registry,
+    valid_two_step_registry,
 };
 
 #[test]
@@ -150,6 +151,100 @@ fn profile_flow_accepts_context_inputs_and_prior_outputs() {
     assert!(registry.profile(id(300)).is_some());
     assert!(registry.pass(id(200)).is_some());
     assert!(registry.representation(id(100)).is_some());
+}
+
+#[test]
+fn profile_exit_rejects_missing_terminal_output() {
+    let signal = representation(40, "signal", [RepresentationRole::DecisionSignal]);
+    let pass = pass(
+        41,
+        "ground",
+        PassClass::SemanticGrounding,
+        [RepresentationInput::required(
+            RepresentationRole::ObservationView,
+        )],
+        [RepresentationOutput::new(
+            RepresentationRole::DecisionSignal,
+            signal.id(),
+        )],
+        PassWritePolicy::None,
+        [ImplementationMode::Rule],
+    );
+    let profile = profile_with_terminal(
+        42,
+        "missing_terminal",
+        [ContextProjectionKind::Observation],
+        [DecisionProfileStep::new(
+            pass.id(),
+            ImplementationMode::Rule,
+        )],
+        RepresentationRole::Choice,
+        None,
+    );
+
+    assert_eq!(
+        DecisionRegistry::new([signal], [pass], [profile]),
+        Err(DecisionError::MissingProfileOutput {
+            profile: id(42),
+            role: RepresentationRole::Choice,
+            kind: None,
+        })
+    );
+}
+
+#[test]
+fn profile_exit_rejects_ambiguous_terminal_output() {
+    let signal_a = representation(43, "signal_a", [RepresentationRole::DecisionSignal]);
+    let signal_b = representation(44, "signal_b", [RepresentationRole::DecisionSignal]);
+    let ground_a = pass(
+        45,
+        "ground_a",
+        PassClass::SemanticGrounding,
+        [RepresentationInput::required(
+            RepresentationRole::ObservationView,
+        )],
+        [RepresentationOutput::new(
+            RepresentationRole::DecisionSignal,
+            signal_a.id(),
+        )],
+        PassWritePolicy::None,
+        [ImplementationMode::Rule],
+    );
+    let ground_b = pass(
+        46,
+        "ground_b",
+        PassClass::SemanticGrounding,
+        [RepresentationInput::required(
+            RepresentationRole::ObservationView,
+        )],
+        [RepresentationOutput::new(
+            RepresentationRole::DecisionSignal,
+            signal_b.id(),
+        )],
+        PassWritePolicy::None,
+        [ImplementationMode::Rule],
+    );
+    let profile = profile_with_terminal(
+        47,
+        "ambiguous_terminal",
+        [ContextProjectionKind::Observation],
+        [
+            DecisionProfileStep::new(ground_a.id(), ImplementationMode::Rule),
+            DecisionProfileStep::new(ground_b.id(), ImplementationMode::Rule),
+        ],
+        RepresentationRole::DecisionSignal,
+        None,
+    );
+
+    assert_eq!(
+        DecisionRegistry::new([signal_a, signal_b], [ground_a, ground_b], [profile]),
+        Err(DecisionError::AmbiguousProfileOutput {
+            profile: id(47),
+            role: RepresentationRole::DecisionSignal,
+            kind: None,
+            matches: 2,
+        })
+    );
 }
 
 #[test]
@@ -485,7 +580,7 @@ fn normal_profile_rejects_oracle_mode_and_oracle_artifact() {
         })
     );
 
-    let artifact_profile = profile_with_policy(
+    let artifact_profile = profile_with_exit_and_policy(
         31,
         "oracle_artifact",
         [ContextProjectionKind::Observation],
@@ -493,6 +588,10 @@ fn normal_profile_rejects_oracle_mode_and_oracle_artifact() {
             pass.id(),
             ImplementationMode::Oracle,
         )],
+        crate::DecisionProfileExit::terminal(crate::DecisionProfileOutput::new(
+            RepresentationRole::OtherModelView,
+            Some(oracle_kind.id()),
+        )),
         ProfileOraclePolicy::Allow,
     );
     assert!(DecisionRegistry::new([oracle_kind], [pass], [artifact_profile]).is_ok());

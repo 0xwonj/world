@@ -317,72 +317,6 @@ impl PassWritePolicy {
     }
 }
 
-/// Trace recording requirements declared by a pass or profile.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct TracePolicy {
-    record_inputs: bool,
-    record_outputs: bool,
-    record_diagnostics: bool,
-    record_provenance: bool,
-    record_model_metadata: bool,
-}
-
-impl TracePolicy {
-    /// Creates a trace policy from explicit flags.
-    #[must_use]
-    pub const fn new(
-        record_inputs: bool,
-        record_outputs: bool,
-        record_diagnostics: bool,
-        record_provenance: bool,
-        record_model_metadata: bool,
-    ) -> Self {
-        Self {
-            record_inputs,
-            record_outputs,
-            record_diagnostics,
-            record_provenance,
-            record_model_metadata,
-        }
-    }
-
-    /// Records only pass outputs and diagnostics.
-    #[must_use]
-    pub const fn outputs_and_diagnostics() -> Self {
-        Self::new(false, true, true, false, false)
-    }
-
-    /// Returns whether input artifact refs should be recorded.
-    #[must_use]
-    pub const fn record_inputs(self) -> bool {
-        self.record_inputs
-    }
-
-    /// Returns whether output artifact refs should be recorded.
-    #[must_use]
-    pub const fn record_outputs(self) -> bool {
-        self.record_outputs
-    }
-
-    /// Returns whether diagnostics should be recorded.
-    #[must_use]
-    pub const fn record_diagnostics(self) -> bool {
-        self.record_diagnostics
-    }
-
-    /// Returns whether provenance should be recorded.
-    #[must_use]
-    pub const fn record_provenance(self) -> bool {
-        self.record_provenance
-    }
-
-    /// Returns whether model metadata should be recorded.
-    #[must_use]
-    pub const fn record_model_metadata(self) -> bool {
-        self.record_model_metadata
-    }
-}
-
 /// Checked declaration for a pass that may later be executed by a runner.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecisionPassContract {
@@ -397,7 +331,6 @@ pub struct DecisionPassContract {
     write_policy: PassWritePolicy,
     implementation_modes: BTreeSet<ImplementationMode>,
     determinism: DeterminismPolicy,
-    trace_policy: TracePolicy,
     version: VersionAnchor,
 }
 
@@ -416,7 +349,6 @@ impl DecisionPassContract {
         write_policy: PassWritePolicy,
         implementation_modes: impl IntoIterator<Item = ImplementationMode>,
         determinism: DeterminismPolicy,
-        trace_policy: TracePolicy,
         version: VersionAnchor,
     ) -> Result<Self, DecisionError> {
         let inputs = inputs.into_iter().collect::<Vec<_>>();
@@ -483,7 +415,6 @@ impl DecisionPassContract {
             write_policy,
             implementation_modes,
             determinism,
-            trace_policy,
             version,
         })
     }
@@ -560,12 +491,6 @@ impl DecisionPassContract {
     #[must_use]
     pub const fn determinism(&self) -> DeterminismPolicy {
         self.determinism
-    }
-
-    /// Returns trace metadata.
-    #[must_use]
-    pub const fn trace_policy(&self) -> TracePolicy {
-        self.trace_policy
     }
 
     /// Returns the version anchor.

@@ -1,15 +1,15 @@
 use std::collections::BTreeSet;
 
-use world_context::ContextProjectionKind;
+use world_context::{ActorContextProjection, ContextProjectionKind};
 use world_core::{ActorId, AuthorityClass, DefinitionId, VersionAnchor};
 use world_defs::DefinitionName;
 
 use crate::{
-    DecisionPassContract, DecisionProfile, DecisionProfileStep, DecisionRegistry,
-    DecisionRegistryBuilder, DeterminismPolicy, ImplementationMode, PassClass, PassWritePolicy,
-    ProfileOraclePolicy, RepresentationAuthority, RepresentationInput, RepresentationKindDef,
-    RepresentationOutput, RepresentationPersistence, RepresentationRole, RepresentationVisibility,
-    TracePolicy,
+    DecisionPassContract, DecisionProfile, DecisionProfileExit, DecisionProfileOutput,
+    DecisionProfileStep, DecisionRegistry, DecisionRegistryBuilder, DeterminismPolicy,
+    ImplementationMode, PassClass, PassWritePolicy, ProfileOraclePolicy, RepresentationAuthority,
+    RepresentationInput, RepresentationKindDef, RepresentationOutput, RepresentationPersistence,
+    RepresentationRole, RepresentationVisibility,
 };
 
 pub(crate) fn id(value: u64) -> DefinitionId {
@@ -24,6 +24,10 @@ pub(crate) fn actor(value: u64) -> ActorId {
         panic!("test actors must be nonzero");
     };
     actor
+}
+
+pub(crate) fn context_projection(actor_value: u64) -> ActorContextProjection {
+    ActorContextProjection::empty(actor(actor_value))
 }
 
 pub(crate) fn version(value: u64) -> VersionAnchor {
@@ -129,7 +133,6 @@ pub(crate) fn pass_with_metadata(
         write_policy,
         modes,
         determinism,
-        TracePolicy::outputs_and_diagnostics(),
         version(1),
     ) else {
         panic!("test pass should be valid");
@@ -176,11 +179,30 @@ pub(crate) fn profile(
     context_inputs: impl IntoIterator<Item = ContextProjectionKind>,
     steps: impl IntoIterator<Item = DecisionProfileStep>,
 ) -> DecisionProfile {
-    profile_with_policy(
+    profile_with_exit_and_policy(
         value,
         profile_name,
         context_inputs,
         steps,
+        DecisionProfileExit::terminal(DecisionProfileOutput::new(RepresentationRole::Choice, None)),
+        ProfileOraclePolicy::Forbid,
+    )
+}
+
+pub(crate) fn profile_with_terminal(
+    value: u64,
+    profile_name: &'static str,
+    context_inputs: impl IntoIterator<Item = ContextProjectionKind>,
+    steps: impl IntoIterator<Item = DecisionProfileStep>,
+    role: RepresentationRole,
+    kind: Option<DefinitionId>,
+) -> DecisionProfile {
+    profile_with_exit_and_policy(
+        value,
+        profile_name,
+        context_inputs,
+        steps,
+        DecisionProfileExit::terminal(DecisionProfileOutput::new(role, kind)),
         ProfileOraclePolicy::Forbid,
     )
 }
@@ -192,13 +214,31 @@ pub(crate) fn profile_with_policy(
     steps: impl IntoIterator<Item = DecisionProfileStep>,
     oracle_policy: ProfileOraclePolicy,
 ) -> DecisionProfile {
+    profile_with_exit_and_policy(
+        value,
+        profile_name,
+        context_inputs,
+        steps,
+        DecisionProfileExit::terminal(DecisionProfileOutput::new(RepresentationRole::Choice, None)),
+        oracle_policy,
+    )
+}
+
+pub(crate) fn profile_with_exit_and_policy(
+    value: u64,
+    profile_name: &'static str,
+    context_inputs: impl IntoIterator<Item = ContextProjectionKind>,
+    steps: impl IntoIterator<Item = DecisionProfileStep>,
+    exit: DecisionProfileExit,
+    oracle_policy: ProfileOraclePolicy,
+) -> DecisionProfile {
     let Ok(profile) = DecisionProfile::new(
         id(value),
         name(profile_name),
         context_inputs,
         steps,
+        exit,
         oracle_policy,
-        TracePolicy::outputs_and_diagnostics(),
         version(1),
     ) else {
         panic!("test profile should be valid");
@@ -382,7 +422,7 @@ pub(crate) fn seed_profile_registry() -> DecisionRegistry {
         [ImplementationMode::Rule],
     );
 
-    let direct_action_baseline = profile(
+    let direct_action_baseline = profile_with_terminal(
         310,
         "direct_action_baseline",
         [
@@ -393,8 +433,10 @@ pub(crate) fn seed_profile_registry() -> DecisionRegistry {
             direct_request.id(),
             ImplementationMode::Rule,
         )],
+        RepresentationRole::ExecutableRequest,
+        Some(request_kind.id()),
     );
-    let intent_only_baseline = profile(
+    let intent_only_baseline = profile_with_terminal(
         311,
         "intent_only_baseline",
         [ContextProjectionKind::Observation],
@@ -402,8 +444,10 @@ pub(crate) fn seed_profile_registry() -> DecisionRegistry {
             DecisionProfileStep::new(structure_context.id(), ImplementationMode::Rule),
             DecisionProfileStep::new(intent.id(), ImplementationMode::Rule),
         ],
+        RepresentationRole::IntentCandidate,
+        Some(intent_kind.id()),
     );
-    let structured_context_baseline = profile(
+    let structured_context_baseline = profile_with_terminal(
         312,
         "structured_context_baseline",
         [
@@ -415,8 +459,10 @@ pub(crate) fn seed_profile_registry() -> DecisionRegistry {
             DecisionProfileStep::new(intent.id(), ImplementationMode::Rule),
             DecisionProfileStep::new(request.id(), ImplementationMode::Rule),
         ],
+        RepresentationRole::ExecutableRequest,
+        Some(request_kind.id()),
     );
-    let explicit_other_model_baseline = profile(
+    let explicit_other_model_baseline = profile_with_terminal(
         313,
         "explicit_other_model_baseline",
         [
@@ -428,8 +474,10 @@ pub(crate) fn seed_profile_registry() -> DecisionRegistry {
             DecisionProfileStep::new(intent.id(), ImplementationMode::Rule),
             DecisionProfileStep::new(other_model.id(), ImplementationMode::Heuristic),
         ],
+        RepresentationRole::OtherModelView,
+        Some(other_model_kind.id()),
     );
-    let oracle_other_model_baseline = profile_with_policy(
+    let oracle_other_model_baseline = profile_with_exit_and_policy(
         314,
         "oracle_other_model_baseline",
         [ContextProjectionKind::Observation],
@@ -438,6 +486,10 @@ pub(crate) fn seed_profile_registry() -> DecisionRegistry {
             DecisionProfileStep::new(intent.id(), ImplementationMode::Rule),
             DecisionProfileStep::new(oracle_other_model.id(), ImplementationMode::Oracle),
         ],
+        DecisionProfileExit::terminal(DecisionProfileOutput::new(
+            RepresentationRole::OtherModelView,
+            Some(oracle_other_model_kind.id()),
+        )),
         ProfileOraclePolicy::Allow,
     );
 

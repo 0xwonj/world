@@ -3,7 +3,7 @@ use world_core::AuthorityClass;
 
 use crate::{
     DecisionError, DecisionPassContract, DeterminismPolicy, ImplementationMode, PassClass,
-    PassWritePolicy, RepresentationInput, RepresentationOutput, RepresentationRole, TracePolicy,
+    PassWritePolicy, RepresentationInput, RepresentationOutput, RepresentationRole,
 };
 
 use super::helpers::{id, name, pass_with_metadata, proposal_policy, version};
@@ -25,7 +25,6 @@ fn pass_rejects_empty_implementation_modes() {
         PassWritePolicy::None,
         [],
         DeterminismPolicy::Deterministic,
-        TracePolicy::default(),
         version(1),
     );
 
@@ -56,7 +55,6 @@ fn pass_rejects_hard_proposal_write_policy() {
         proposal_policy(AuthorityClass::Hard),
         [ImplementationMode::Rule],
         DeterminismPolicy::Deterministic,
-        TracePolicy::default(),
         version(1),
     );
 
@@ -83,7 +81,6 @@ fn pass_rejects_output_role_incompatible_with_write_policy() {
         PassWritePolicy::None,
         [ImplementationMode::Rule],
         DeterminismPolicy::Deterministic,
-        TracePolicy::default(),
         version(1),
     );
 
@@ -113,7 +110,6 @@ fn pass_rejects_write_policy_incompatible_with_class() {
         PassWritePolicy::ExecutableRequestOnly,
         [ImplementationMode::Rule],
         DeterminismPolicy::Deterministic,
-        TracePolicy::default(),
         version(1),
     );
 
@@ -143,7 +139,6 @@ fn pass_rejects_conflicting_authority_read_contract() {
         PassWritePolicy::None,
         [ImplementationMode::Rule],
         DeterminismPolicy::Deterministic,
-        TracePolicy::default(),
         version(1),
     );
 
@@ -173,7 +168,6 @@ fn llm_and_oracle_modes_require_matching_determinism_metadata() {
         PassWritePolicy::None,
         [ImplementationMode::Llm],
         DeterminismPolicy::Deterministic,
-        TracePolicy::default(),
         version(1),
     );
     let oracle_result = DecisionPassContract::new(
@@ -191,7 +185,6 @@ fn llm_and_oracle_modes_require_matching_determinism_metadata() {
         PassWritePolicy::None,
         [ImplementationMode::Oracle],
         DeterminismPolicy::ExternalNondeterministic,
-        TracePolicy::default(),
         version(1),
     );
 

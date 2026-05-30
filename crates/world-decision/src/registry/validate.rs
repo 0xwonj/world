@@ -1,15 +1,15 @@
-use std::collections::{BTreeMap, BTreeSet};
-
-use world_context::ContextProjectionKind;
-use world_core::DefinitionId;
+use std::collections::BTreeSet;
 
 use crate::{
     DecisionError, DecisionPassContract, DecisionProfile, ImplementationMode, InputBinding,
     InputRequirement, PassWritePolicy, ProfileOraclePolicy, RepresentationAuthority,
-    RepresentationKindDef, RepresentationRole,
+    RepresentationKindDef,
 };
 
-use super::DecisionRegistry;
+use super::{
+    DecisionRegistry,
+    flow::{AvailableRepresentations, InputMatchCounts, collect_any_of_groups},
+};
 
 pub(super) fn registry(registry: &DecisionRegistry) -> Result<(), DecisionError> {
     validate_passes(registry)?;
@@ -107,13 +107,15 @@ fn validate_profile(
         if step.mode() == ImplementationMode::Disabled {
             continue;
         }
-        if profile.oracle_policy().forbids_oracle() && step.mode() == ImplementationMode::Oracle {
+        let oracle_step = step.mode() == ImplementationMode::Oracle
+            || pass.determinism() == crate::DeterminismPolicy::Oracle;
+        if profile.oracle_policy().forbids_oracle() && oracle_step {
             return Err(DecisionError::OracleModeForbidden {
                 profile: profile.id(),
                 pass: pass.id(),
             });
         }
-        if step.mode() == ImplementationMode::Oracle {
+        if oracle_step {
             oracle_involved = true;
         }
 
@@ -128,6 +130,7 @@ fn validate_profile(
             profile: profile.id(),
         });
     }
+    validate_profile_exit(profile, &available)?;
 
     Ok(())
 }
@@ -294,18 +297,6 @@ fn missing_or_disallowed_context(
     }
 }
 
-fn collect_any_of_groups<'a>(
-    inputs: &'a [crate::RepresentationInput],
-) -> BTreeMap<&'a str, Vec<&'a crate::RepresentationInput>> {
-    let mut groups: BTreeMap<&'a str, Vec<&'a crate::RepresentationInput>> = BTreeMap::new();
-    for input in inputs {
-        if let InputRequirement::AnyOf(group) = input.requirement() {
-            groups.entry(group.as_str()).or_default().push(input);
-        }
-    }
-    groups
-}
-
 fn validate_profile_outputs(
     registry: &DecisionRegistry,
     profile: &DecisionProfile,
@@ -333,116 +324,6 @@ fn validate_profile_outputs(
     }
 
     Ok(oracle_involved)
-}
-
-#[derive(Clone, Debug, Default)]
-struct AvailableRepresentations {
-    entries: Vec<AvailableRepresentation>,
-}
-
-impl AvailableRepresentations {
-    fn from_context_inputs(context_inputs: impl Iterator<Item = ContextProjectionKind>) -> Self {
-        let mut available = Self::default();
-        for context in context_inputs {
-            for role in context_roles(context) {
-                available.entries.push(AvailableRepresentation {
-                    role,
-                    kind: None,
-                    source: AvailableSource::Context(context),
-                });
-            }
-        }
-        available
-    }
-
-    fn insert_output(&mut self, role: RepresentationRole, kind: DefinitionId) {
-        self.entries.push(AvailableRepresentation {
-            role,
-            kind: Some(kind),
-            source: AvailableSource::PassOutput,
-        });
-    }
-
-    fn matches_for_pass(
-        &self,
-        input: &crate::RepresentationInput,
-        pass: &DecisionPassContract,
-    ) -> InputMatchCounts {
-        let mut counts = InputMatchCounts::default();
-        for entry in self
-            .entries
-            .iter()
-            .filter(|entry| entry.satisfies(input.role(), input.kind()))
-        {
-            match entry.source {
-                AvailableSource::Context(context) if pass.allows_context(context) => {
-                    counts.allowed += 1;
-                }
-                AvailableSource::Context(context) => {
-                    counts.disallowed_context.get_or_insert(context);
-                }
-                AvailableSource::PassOutput => {
-                    counts.allowed += 1;
-                }
-            }
-        }
-        counts
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct AvailableRepresentation {
-    role: RepresentationRole,
-    kind: Option<DefinitionId>,
-    source: AvailableSource,
-}
-
-impl AvailableRepresentation {
-    fn satisfies(&self, role: RepresentationRole, kind: Option<DefinitionId>) -> bool {
-        self.role == role
-            && match kind {
-                Some(kind) => self.kind == Some(kind),
-                None => true,
-            }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AvailableSource {
-    Context(ContextProjectionKind),
-    PassOutput,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct InputMatchCounts {
-    allowed: usize,
-    disallowed_context: Option<ContextProjectionKind>,
-}
-
-fn context_roles(context: ContextProjectionKind) -> impl Iterator<Item = RepresentationRole> {
-    match context {
-        ContextProjectionKind::Observation => [
-            RepresentationRole::ActorRelativeView,
-            RepresentationRole::ObservationView,
-        ]
-        .as_slice(),
-        ContextProjectionKind::Epistemic => [
-            RepresentationRole::ActorRelativeView,
-            RepresentationRole::EpistemicView,
-        ]
-        .as_slice(),
-        ContextProjectionKind::Social => [
-            RepresentationRole::ActorRelativeView,
-            RepresentationRole::SocialContextView,
-        ]
-        .as_slice(),
-        ContextProjectionKind::Capability => [RepresentationRole::CapabilitySet].as_slice(),
-        ContextProjectionKind::Repertoire => [RepresentationRole::ActionRepertoire].as_slice(),
-        ContextProjectionKind::Affordance => [RepresentationRole::AffordanceView].as_slice(),
-        _ => [].as_slice(),
-    }
-    .iter()
-    .copied()
 }
 
 fn validate_output_write_policy(
@@ -482,4 +363,33 @@ fn validate_output_write_policy(
             authority: representation.authority(),
         })
     }
+}
+
+fn validate_profile_exit(
+    profile: &DecisionProfile,
+    available: &AvailableRepresentations,
+) -> Result<(), DecisionError> {
+    if let Some(output) = profile.exit().output() {
+        let matches = available.matches_for_output(output.role(), output.kind_id());
+        match matches {
+            0 => {
+                return Err(DecisionError::MissingProfileOutput {
+                    profile: profile.id(),
+                    role: output.role(),
+                    kind: output.kind_id(),
+                });
+            }
+            1 => {}
+            _ => {
+                return Err(DecisionError::AmbiguousProfileOutput {
+                    profile: profile.id(),
+                    role: output.role(),
+                    kind: output.kind_id(),
+                    matches,
+                });
+            }
+        }
+    }
+
+    Ok(())
 }
