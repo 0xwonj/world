@@ -2,7 +2,8 @@
 
 ## Status
 
-Active. W1 is the only detailed work package.
+Active. W1 is complete. W2 is the proposed next detailed work package and is
+waiting on its artifact-format dependency decision.
 
 ## Goal
 
@@ -36,7 +37,7 @@ selectable path nor a compatibility layer.
 
 ### W1: Workspace cutover and canonical core
 
-- [Detailed active plan](milestone-01-work-package-01.md)
+- [Completed plan and evidence](milestone-01-work-package-01.md)
 - remove the complete old dependency closure and every incoming manifest edge
   from the active workspace;
 - retain only a compile-clean target foundation subgraph;
@@ -46,6 +47,7 @@ selectable path nor a compatibility layer.
 
 ### W2: Definitions, artifacts, and authoring
 
+- [Proposed detailed plan](milestone-01-work-package-02.md)
 - rewrite `world-defs` with pack-qualified keys and the minimum definition
   families selected in M0;
 - implement untrusted envelope decoding, reverification, sealed
@@ -80,9 +82,9 @@ selectable path nor a compatibility layer.
 - add black-box conformance and owner-local privacy/authority tests;
 - prove no replaced symbol or forbidden dependency edge remains.
 
-Only the active work package receives lower-level task decomposition. Its
-completion evidence may revise the next work package's local method, but not
-M1's outcome or authority boundaries.
+Only the current implementation package receives lower-level task
+decomposition. Its completion evidence may revise the next package's local
+method, but not M1's outcome or authority boundaries.
 
 ## Deletion scope
 

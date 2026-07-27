@@ -2,7 +2,7 @@
 
 ## Status
 
-Active.
+Complete.
 
 ## Goal
 
@@ -234,11 +234,55 @@ Stop before:
 
 ## Completion evidence
 
-To be filled after verification.
+```text
+rewrite branch:
+  codex/target-architecture-rewrite
+
+implementation commit:
+  dd962450c13d1d8fdfc2fd614245b7a09c8587a6
+
+selected local packages:
+  world-core
+
+world-core direct dependencies:
+  blake3 1.8.5, registry source, default features disabled
+
+resolved registry closure:
+  arrayref, arrayvec, blake3, cc, cfg-if, constant_time_eq,
+  cpufeatures, find-msvc-tools, libc, shlex
+
+tracked Cargo manifests:
+  Cargo.toml
+  crates/world-core/Cargo.toml
+```
+
+Verified results:
+
+- the nine legacy downstream crate trees and all old `world-core` modules were
+  deleted; their complete state remains at preservation commit
+  `6571dc8442f4450e067d60c8a2a71257370512df`;
+- full locked Cargo metadata selected exactly one local package and the
+  executable dependency allowlist returned `true`;
+- the locked Cargo tree contained only `world-core`, BLAKE3, and the registry
+  closure listed above;
+- no selected path dependency or dormant Cargo manifest remained;
+- the superseded-symbol scan returned no match;
+- the frozen 109-byte canonical vector produced
+  `ce51ee3c303921a7f271a55a0351903333277412aaed8d142ef37e876c44d878`;
+- 12 integration tests and one compile-fail doctest passed;
+- formatting, workspace check, warning-free Clippy, locked workspace tests,
+  metadata, dependency tree, manifest allowlist, and `git diff --check`
+  passed;
+- the implementation commit left a clean working tree.
+
+The initial idea of retaining excluded legacy directories was rejected during
+review. Deleting them in W1 made the physical tree match the clean-replacement
+contract and leaves package names available for target-shaped reintroduction.
 
 ## W2 handoff
 
 W2 may depend only on the final public surface demonstrated here. It will add
 the first real producers and consumers for pack keys, definition identities,
-artifact provenance/diagnostics, exact authored duration, and deterministic T1
-limits.
+artifact provenance/diagnostics, and deterministic T1 limits. Exact authored
+duration remains deferred until a selected definition has real time semantics;
+the transfer slice does not invent a timing field solely to create that type.
