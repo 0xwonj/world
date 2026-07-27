@@ -1,6 +1,9 @@
 [workspace]
 members = [
     "crates/world-core",
+    "crates/world-defs",
+    "crates/world-authoring",
+    "crates/world-standard",
 ]
 resolver = "3"
 
@@ -11,6 +14,7 @@ publish = false
 
 [workspace.dependencies]
 blake3 = { version = "1.8.5", default-features = false }
+minicbor = { version = "2.3.0", default-features = false, features = ["alloc"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

@@ -1,0 +1,12 @@
+[package]
+name = "world-defs"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+minicbor.workspace = true
+world-core = { path = "../world-core" }
+
+[lints]
+workspace = true

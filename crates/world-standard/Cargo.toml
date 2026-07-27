@@ -1,0 +1,11 @@
+[package]
+name = "world-standard"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+world-defs = { path = "../world-defs" }
+
+[lints]
+workspace = true
