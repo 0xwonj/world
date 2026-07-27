@@ -2,7 +2,7 @@
 
 ## Status
 
-Active.
+Complete.
 
 ## Goal
 
@@ -152,10 +152,38 @@ they have an immediate consumer.
 
 ## Completion evidence
 
-To be filled at milestone close.
+```text
+preservation branch:
+  codex/preserve-pre-redesign-2026-07-27
+
+preservation commit:
+  6571dc8442f4450e067d60c8a2a71257370512df
+
+rewrite branch:
+  codex/target-architecture-rewrite
+
+rewrite base:
+  4bc71b7
+
+architecture and roadmap commit:
+  5590eca
+```
+
+Verified results:
+
+- the preservation commit contains all 78 selected changed paths;
+- ignored `target/` output is absent;
+- `git fsck --no-dangling --no-progress` passed;
+- the clean committed baseline passed formatting, workspace check, clippy,
+  155 tests, and whitespace validation;
+- the rewrite branch contains the architecture and execution documents but no
+  preserved context/decision implementation WIP;
+- Markdown fence, trailing-whitespace, relative-link, and staged-diff checks
+  passed;
+- the three M1 input decisions and its binary acceptance gates are recorded.
 
 ## Next milestone handoff
 
-M1 begins with a compile-clean workspace cutover and canonical `world-core`.
-Only its first work package receives method-level implementation planning at
-activation.
+M1 is active. It begins with a compile-clean workspace cutover and canonical
+`world-core`. Only W1 receives method-level implementation planning before
+work begins.

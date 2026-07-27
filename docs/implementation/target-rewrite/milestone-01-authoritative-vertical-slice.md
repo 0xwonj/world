@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft. It becomes active only after M0 completion evidence is recorded.
+Active. W1 is the only detailed work package.
 
 ## Goal
 

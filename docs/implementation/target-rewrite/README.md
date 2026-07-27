@@ -37,8 +37,8 @@ At milestone close:
 
 | Milestone | Status | Plan |
 |---|---|---|
-| M0 — Preservation and baseline | Active | [Plan](milestone-00-preservation-and-baseline.md) |
-| M1 — First authoritative slice | Draft | [Plan](milestone-01-authoritative-vertical-slice.md) |
+| M0 — Preservation and baseline | Complete | [Plan and evidence](milestone-00-preservation-and-baseline.md) |
+| M1 — First authoritative slice | Active | [Plan](milestone-01-authoritative-vertical-slice.md) |
 | M2–M7 | Roadmap only | [Roadmap](../../architecture/target-architecture/implementation-roadmap.md) |
 
 ## Plan template
