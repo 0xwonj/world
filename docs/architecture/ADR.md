@@ -2,7 +2,11 @@
 
 ## Status
 
-Current architecture decision notes.
+Frozen legacy decision notes.
+
+Superseded as cross-system authority by
+[`target-architecture/decisions.md`](target-architecture/decisions.md). Retain
+this file as design history and a source of adopted concepts only.
 
 This file records short architecture decisions that explain why the engine
 shape is the way it is. It is not a full research survey, implementation plan,

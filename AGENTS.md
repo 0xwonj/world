@@ -3,15 +3,17 @@
 ## Repository Contract
 
 This repository is an early Rust implementation of a simulation-first RPG
-engine. The current architecture and design authority lives under
-`docs/architecture/`, `docs/design/`, and `docs/research/`.
+engine. The normative cross-system target architecture lives under
+`docs/architecture/target-architecture/`. `docs/design/` and `docs/research/`
+remain detailed inputs; older files directly under `docs/architecture/` are
+frozen legacy planning where they conflict with the target package.
 
 ## Working Rules
 
 - Check `git status --short` before editing.
 - Do not revert unrelated dirty work.
-- Preserve the crate dependency direction described by the current
-  architecture docs.
+- Preserve the crate dependency direction described by the target architecture
+  docs.
 - Keep implementation minimal and domain-shaped; prefer concrete types and
   narrow APIs over broad framework traits.
 - Ask before changing architecture boundaries, crate dependency direction,

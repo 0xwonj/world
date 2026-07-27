@@ -2,7 +2,11 @@
 
 ## Status
 
-Current implementation convention draft.
+Supporting convention draft.
+
+These conventions remain active only where they do not conflict with
+`AGENTS.md` or the normative
+[`target-architecture/`](target-architecture/README.md) package.
 
 ## Purpose
 

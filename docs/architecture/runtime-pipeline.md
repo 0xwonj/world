@@ -2,7 +2,10 @@
 
 ## Status
 
-Current architecture planning draft.
+Frozen legacy planning draft.
+
+Superseded where it conflicts with
+[`target-architecture/runtime-persistence-and-scale.md`](target-architecture/runtime-persistence-and-scale.md).
 
 ## Purpose
 

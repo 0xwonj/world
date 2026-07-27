@@ -2,7 +2,10 @@
 
 ## Status
 
-Current high-level implementation roadmap.
+Frozen legacy implementation roadmap.
+
+Do not continue this sequence as the active plan. The replacement is
+[`target-architecture/implementation-roadmap.md`](target-architecture/implementation-roadmap.md).
 
 The previous roadmap is archived at
 [Archived RPG Engine Roadmap](archive/implementation-plan-rpg-engine-roadmap.md).

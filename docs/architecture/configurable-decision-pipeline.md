@@ -1,5 +1,10 @@
 # Configurable Decision Pipeline
 
+> **Frozen legacy design.** The production control-plane decision in
+> [`target-architecture/cognition-and-agency.md`](target-architecture/cognition-and-agency.md)
+> replaces this cross-lifecycle pipeline. A configurable runner may survive
+> only as an internal research implementation of one typed lifecycle port.
+
 ## Purpose
 
 This document defines the target architecture for configurable actor decision
@@ -868,4 +873,3 @@ If this is achieved, the project has a stronger research position than "an RPG
 engine with agents". It becomes a controlled substrate for testing which
 structured cognitive/social representations actually help LLM agents act in
 complex mixed-motive worlds.
-

@@ -2,7 +2,10 @@
 
 ## Status
 
-Current architecture planning draft.
+Frozen legacy planning draft.
+
+Superseded by the target package and its
+[`implementation-roadmap.md`](target-architecture/implementation-roadmap.md).
 
 ## Purpose
 

@@ -2,7 +2,10 @@
 
 ## Status
 
-Current architecture planning draft.
+Frozen legacy planning draft.
+
+Superseded where it conflicts with the dependency direction in
+[`target-architecture/system-architecture.md`](target-architecture/system-architecture.md).
 
 ## Purpose
 

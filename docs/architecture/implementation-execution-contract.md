@@ -2,7 +2,11 @@
 
 ## Status
 
-Mandatory execution contract for long-running implementation agents.
+Frozen legacy execution contract.
+
+It is no longer mandatory for the redesign. Repository working rules remain in
+`AGENTS.md`; the active replacement sequence and gates are in
+[`target-architecture/implementation-roadmap.md`](target-architecture/implementation-roadmap.md).
 
 ## Purpose
 
