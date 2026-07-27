@@ -13,8 +13,8 @@ interface.
 
 | Tier | Form | Simulation authority | Host execution trust |
 |---|---|---|---|
-| T0 | Content data | Instantiate checked vocabulary | Untrusted bytes/data |
-| T1 | Checked typed IR | Interpreted proposal/effect vocabulary | Untrusted bytes; trusted bounded interpreter |
+| T0 | Content data | Instantiate checked vocabulary | Unchecked serialized data; trusted engine validation |
+| T1 | Checked typed IR | Interpreted proposal/effect vocabulary | Unchecked serialized data; trusted bounded interpreter |
 | T2 | Evaluator | Return bounded typed proposals | Host-trusted native code or isolated process/Wasm |
 | T3 | Statically linked engine extension | Install trusted primitive semantics | Engine-trusted |
 
@@ -52,13 +52,14 @@ Examples:
 T1 declarations may describe an effect only through a sealed, typed vocabulary
 whose verifier and interpreter are trusted engine code.
 
-Every T1 family declares deterministic source/artifact size, nesting, binding
-cardinality, expansion, and evaluation limits. Authoritative IR is
-structurally terminating or evaluated with deterministic fuel. Budget
-exhaustion fails closed before commit and produces no partial effect. The exact
-limit/cost-model policy is part of the semantic interface catalog and execution
-contract: its descriptor digest enters the required interface closure and the
-normalized `ExecutionSemanticsManifest`.
+Artifact loading has one outer byte limit. Every T1 family separately declares
+the semantic limits that affect execution, such as binding and effect
+cardinality, structural termination, or deterministic fuel. Exhausting an
+execution limit rejects the proposed effect before commit and produces no
+partial change. When a family requires a cost model beyond its structural
+cardinality, that policy becomes part of the semantic interface catalog and
+execution contract: its descriptor digest enters the required interface
+closure and the normalized `ExecutionSemanticsManifest`.
 
 ### T2: proposal-only computation
 
@@ -96,23 +97,33 @@ prepared result. They do not receive unrestricted mutable session state.
 
 ## Pack compilation
 
-Runtime never consumes source packs directly:
+Runtime never consumes source packs directly. Compilation and loading are
+separate outer paths that converge on one defs-owned validator:
 
 ```text
+source:
 pack manifests
   -> parse manifests
   -> resolve one exact package/source identity per PackKey
   -> ResolvedPackageGraph
-  -> load/verify or compile dependencies topologically
+  -> compile dependencies topologically
   -> parse source AST
   -> resolve imports against exact export/interface digests
   -> resolved typed declarations
   -> complete lowering to executable family IR
-  -> stage and authority checking
-  -> domain, termination, and resource-limit verification
-  -> canonical ArtifactBlob + runtime semantic fingerprint
-  -> ArtifactDescriptor + ArtifactEnvelope
+  -> ArtifactData
+  -> validate(ArtifactData, SemanticInterfaceCatalog)
+  -> deterministic ArtifactBlob encoding
+  -> ArtifactDescriptor + ArtifactEnvelope + sealed VerifiedPackArtifact
+
+load:
+ArtifactEnvelope
+  -> format/version/length/digest checks
+  -> decode ArtifactData
+  -> validate(ArtifactData, SemanticInterfaceCatalog)
   -> sealed VerifiedPackArtifact
+
+both:
   -> finalized artifact-digest PackLock
   -> linked immutable RuntimeDefinitionSet
   -> process-local ActivatedDefinitionRegistry
@@ -155,8 +166,12 @@ ArtifactDescriptor
   optional source-map sidecar descriptors
 
 ArtifactEnvelope
-  untrusted ArtifactDescriptor
-  untrusted serialized ArtifactBlob bytes
+  unchecked ArtifactDescriptor
+  unchecked serialized ArtifactBlob bytes
+
+ArtifactData
+  compiler-produced or decoded domain representation
+  normalized manifest, definitions, and exact interface references
 
 VerifiedPackArtifact
   sealed in-memory verified value
@@ -194,21 +209,29 @@ ActivatedDefinitionRegistry
 Semantic version ranges express compatibility. Content digests express exact
 identity. Both are required.
 
-Serialized artifacts, locks, and definition sets remain untrusted bytes.
-Artifact loading rechecks the blob digest, canonical encoding,
-executable-family IR invariants, resource limits, stage authority, and exact
-imported interface digests before a private constructor yields a
-`VerifiedPackArtifact`. Linking rechecks the exact dependency graph, direct
-import/export edges, symbol closure, and cross-pack invariants before yielding a
-`RuntimeDefinitionSet`. Activation then verifies the required
-semantic-interface closure against installed implementations before yielding
-an `ActivatedDefinitionRegistry`. A valid signature never skips any phase or
-grants a higher extension tier.
+Serialized artifacts, locks, and definition sets are unchecked
+representations. Artifact loading checks the descriptor, blob length, and exact
+blob digest, decodes `ArtifactData`, and invokes the same catalog-aware domain
+validator used by authoring. That validator checks executable-family
+invariants, semantic execution limits, stage authority, references, and exact
+interface digests before a private constructor yields a
+`VerifiedPackArtifact`. The compiler validates its in-memory `ArtifactData`
+directly and does not encode and decode its own output.
 
-The exact blob digest preimage is the canonical serialized `ArtifactBlob`
-bytes. The digest lives in the external `ArtifactDescriptor`, avoiding a
-self-referential field. Signatures cover the descriptor/digest according to
-their declared scheme.
+Linking checks the exact dependency graph, direct import/export edges, symbol
+closure, and cross-pack invariants before yielding a `RuntimeDefinitionSet`.
+Activation then verifies the required semantic-interface closure against
+installed implementations before yielding an `ActivatedDefinitionRegistry`.
+A valid signature never skips domain validation or grants a higher extension
+tier.
+
+The exact blob digest preimage is the exact stored `ArtifactBlob` bytes. The
+project-owned emitter is deterministic, but loading does not require every
+valid semantic value to have one possible byte representation. Alternative
+accepted representations have different blob and exact-set identities while
+the normalized runtime semantic fingerprint may remain equal. The digest lives
+in the external `ArtifactDescriptor`, avoiding a self-referential field.
+Signatures cover the descriptor/digest according to their declared scheme.
 
 The runtime semantic fingerprint separately covers:
 
@@ -324,21 +347,21 @@ analysis. Each executable runtime family retains its own:
 - authority class;
 - verification rules;
 - runtime interpreter;
-- deterministic cost model and limits;
+- deterministic structural limits and any consumer-required cost model;
 - version and migration policy.
 
 Ordinary packs may instantiate and compose installed operations. A
 `SemanticInterfaceCatalog` entry is declarative: it describes signatures,
-legal families and stages, authority/effect constraints, and deterministic
-resource rules that the generic verifier can interpret. The initial authoring
-boundary accepts only operations that the installed generic lowering and
-verifier understand from that catalog. Custom compiler hooks are unsupported,
-not implicitly discovered from the runtime distribution. If a future primitive
-genuinely requires custom lowering or verification code, it first requires an
-explicit composition-root injection boundary, exact compiler-extension set
-identity, dependency direction, artifact-closure binding, and failure model.
-Pack data can never supply that code. The `EngineDistribution` supplies the
-matching host-trusted runtime implementation and configuration identity.
+legal families and stages, authority/effect constraints, and the structural or
+cost rules needed by current consumers. The initial authoring boundary accepts
+only operations that the installed generic lowering and validator understand
+from that catalog. Custom compiler hooks are unsupported, not implicitly
+discovered from the runtime distribution. If a future primitive genuinely
+requires custom lowering or validation code, it first requires an explicit
+composition-root injection boundary, exact compiler-extension set identity,
+dependency direction, artifact-closure binding, and failure model. Pack data
+can never supply that code. The `EngineDistribution` supplies the matching
+host-trusted runtime implementation and configuration identity.
 
 Pack activation fails unless every required semantic-interface digest resolves
 to the matching implementation.
@@ -352,7 +375,7 @@ The stable semantic contract is:
 ```text
 fully lowered executable family IR
 + independent verifier contract
-+ canonical artifact format
++ deterministic owner-defined artifact encoding
 + interpreter behavior
 ```
 
@@ -1093,7 +1116,7 @@ ports. None requires widening runtime's mutation authority.
 ## Extensibility invariants
 
 1. Source packs never execute inside the authoritative commit boundary.
-2. Unknown required operations and versions fail closed.
+2. Unknown required operations and versions are rejected before activation.
 3. Definition identity is durable and qualified; numeric interning is local.
 4. A session's `RuntimeDefinitionSet` is exact and immutable.
 5. IR families share infrastructure but not one universal authority vocabulary.
@@ -1113,7 +1136,8 @@ ports. None requires widening runtime's mutation authority.
     versioning rule, failure behavior, and trace story before implementation.
 13. Analysis artifacts never participate in runtime definition activation or
     trajectory identity.
-14. Serialized artifacts are reverified before sealed runtime activation.
+14. Serialized artifacts are decoded and owner-validated before sealed runtime
+    activation.
 15. Retained checkpoints, runs, and reports pin their exact artifact closure.
 16. Engine-minted trace structure is distinguished from evaluator
     self-reported rationale.

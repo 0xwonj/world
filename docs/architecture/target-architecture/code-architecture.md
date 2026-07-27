@@ -99,13 +99,15 @@ authority path has its own request, result, failure, and persistence rules.
 
 Shared private helpers are allowed where they do not erase those contracts.
 
-### Trusted decoded values are never constructed by deserialization alone
+### Checked values are never constructed by deserialization alone
 
 Identity-bearing and authority-bearing values do not derive a public
 `Deserialize` implementation that bypasses validation. Storage and wire
-representations decode into untrusted DTOs. Their owner then verifies
-canonical identity, schema, bounds, references, stage legality, and direct
-succession before constructing the trusted value.
+representations decode into unchecked DTOs. Their owner then validates the
+schema, identity, relevant domain limits, references, stage legality, and
+direct succession before constructing a checked value. This boundary protects
+correctness; hostile-input hardening is added only at an actual hostile
+ingestion boundary.
 
 Canonical identity encoding is separate from convenient storage encoding.
 `world-core::canonical` owns a small versioned canonical preimage writer for
@@ -253,7 +255,10 @@ world-defs/src/
   process/
   observation/
   artifact/
-    envelope.rs      untrusted compiled artifact envelope
+    data.rs          compiler-produced or decoded ArtifactData
+    envelope.rs      unchecked serialized artifact envelope
+    codec.rs         private deterministic storage encoding
+    validate.rs      shared catalog-aware domain validation
     verified.rs      sealed VerifiedPackArtifact
     lock.rs          exact PackLock
   set/
@@ -475,18 +480,19 @@ The compiler uses distinct internal stage types:
 
 ```text
 SourcePackage
-  -> ParsedPackage
   -> ResolvedPackage
-  -> TypedPackage
-  -> LoweredPackage
+  -> ArtifactData
+  -> defs-owned catalog-aware validation
   -> VerifiedPackArtifact
   -> finalized artifact-digest PackLock
   -> ExactPackSet
   -> RuntimeDefinitionSet
 ```
 
-These stages do not imply a public pass manager or one universal IR.
-Family-specific lowering and verification remain in family-owned modules.
+Only phases that add a distinct invariant receive a stage type. A future text
+frontend may add parsed and typed forms without changing the `ArtifactData`
+boundary. These stages do not imply a public pass manager or one universal IR;
+family-specific lowering and validation remain in family-owned modules.
 
 ### `world-engine`
 
@@ -561,7 +567,7 @@ remain in `world-standard-runtime`. `world-cli` is the first composition root.
 | Type or concept | Owning package | Construction authority |
 |---|---|---|
 | `DefinitionKey`, checked family IR | `world-defs` | checked definition builders/compiler |
-| `VerifiedPackArtifact` | `world-defs` | `world-defs` verifier/sealer invoked by authoring or load-time reverification |
+| `VerifiedPackArtifact` | `world-defs` | compiler-produced or decoded `ArtifactData` passing the same defs-owned validator |
 | `RuntimeDefinitionSet` | `world-defs` | exact linker |
 | accepted state and lifecycle protocol records | `world-model` | checked value constructors; acceptance remains runtime-owned |
 | `WorldSnapshot` and query views | `world-model` | immutable projection of a runtime head or fixture |
@@ -1484,8 +1490,10 @@ The public operation is narrow:
 
 ```rust
 AuthoringCompiler::compile(CompileRequest) -> Compilation
-world_defs::ArtifactVerifier::reverify(ArtifactEnvelope)
-    -> VerifiedPackArtifact
+world_defs::ArtifactValidator::new(&SemanticInterfaceCatalog)
+    .validate(ArtifactData) -> VerifiedPackArtifact
+world_defs::ArtifactValidator::new(&SemanticInterfaceCatalog)
+    .load(ArtifactEnvelope) -> VerifiedPackArtifact
 world_defs::DefinitionLinker::link(ExactPackSet)
     -> RuntimeDefinitionSet
 ```
@@ -1493,16 +1501,23 @@ world_defs::DefinitionLinker::link(ExactPackSet)
 Internally:
 
 - package resolution completes before imported-name checking;
-- resolved, typed, and lowered forms are distinct Rust types;
+- a phase receives a distinct private type only when it adds a separately
+  useful invariant;
 - each executable family owns its operations, legality, lowering, and
-  verifier;
-- boundedness and authority-stage checks occur before artifact sealing;
+  validator;
+- compiler-produced and decoded `ArtifactData` use the same catalog-aware
+  semantic validator;
+- authoring encodes validated data once and never decodes its own output;
+- loading checks format, version, outer size, length, and digest before
+  decoding and domain validation, without mandatory re-encoding;
+- semantic cardinality and authority-stage checks occur before artifact
+  sealing;
 - non-obvious optimization requires construction-time invariants or
   translation validation;
 - the artifact-digest `PackLock` is finalized before `ExactPackSet` can be
   constructed or linked;
-- activation always reverifies serialized input and exact semantic-interface
-  closure.
+- activation loads any serialized input through the validator and always
+  checks the exact semantic-interface implementation closure.
 
 Source and compiled-artifact upgrade boundaries are part of the target's
 future version model. They are not importers for the current implementation.

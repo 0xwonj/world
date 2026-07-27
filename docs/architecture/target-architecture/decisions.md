@@ -219,18 +219,21 @@ content-addressed artifacts, an exact dependency lock, and a
 `RuntimeDefinitionSet`.
 
 Resolution first fixes an exact package/source graph. Compilation or artifact
-loading and reverification then produces exact artifact digests, after which
-`PackLock` is finalized and the artifacts are linked into a
-process-independent `RuntimeDefinitionSet`. Process-local activation builds a
-reconstructible `ActivatedDefinitionRegistry`.
+loading then produces exact artifact digests. Compilation constructs and
+validates in-memory `ArtifactData`; loading checks and decodes an
+`ArtifactEnvelope` before invoking the same defs-owned validator. `PackLock`
+is finalized only after those artifact digests exist, and the artifacts are
+linked into a process-independent `RuntimeDefinitionSet`. Process-local
+activation builds a reconstructible `ActivatedDefinitionRegistry`.
 
 Durable definition identity is pack-qualified. Process-local numeric interning
 is never persistent identity. Compilation records the exact required semantic
 interface closure; activation binds that closure against the
 `SemanticInterfaceCatalog` and implementations supplied by an
 `EngineDistribution`. Unused installed interfaces do not change definition-set
-identity. Serialized artifacts remain untrusted until reverified into sealed
-values, and a reproducible session does not hot-reload semantics in place.
+identity. Serialized artifacts are unchecked representations until decoded and
+validated into sealed values, and a reproducible session does not hot-reload
+semantics in place.
 
 ## D-016: Extensibility follows a trust ladder
 
@@ -577,3 +580,47 @@ Primary references:
 
 - [official BLAKE3 Rust implementation](https://docs.rs/blake3/latest/blake3/)
 - [official BLAKE3 repository and test vectors](https://github.com/BLAKE3-team/BLAKE3)
+
+## D-031: Artifact validation protects correctness, not a hypothetical hostile boundary
+
+The current authoring toolchain and pack authors are host-trusted. Serialized
+artifacts may still be corrupt, stale, mismatched, or produced by an
+incompatible schema, so they remain unchecked until their owner validates
+them. W2 does not model an attacker attempting parser resource exhaustion or
+arbitrary-code execution.
+
+`ArtifactBlobV1` uses a restricted deterministic CBOR emitter implemented by
+private, explicit `minicbor` calls in `world-defs`. The artifact codec is a
+storage format, not `world-canonical-v1`, a public serialization framework, or
+a Serde surface. The emitter uses definite arrays, explicit variants, bounded
+unsigned values, UTF-8 text, bytes, and booleans. Maps, floating point, and
+indefinite values are outside the emitted schema.
+
+Both construction paths converge on one semantic operation:
+
+```text
+validate(ArtifactData, SemanticInterfaceCatalog)
+```
+
+Authoring validates compiler-produced `ArtifactData` in memory and encodes it
+once. Loading checks format, version, declared length, exact blob digest, and
+one outer byte limit; it then decodes `ArtifactData` and invokes the same
+validator. The compiler does not serialize and decode its own output, and the
+loader does not re-encode every accepted input merely to prove byte
+uniqueness.
+
+Artifacts carry the exact semantic-interface keys and descriptor digests they
+use, not copies of the descriptors. The validator resolves those references
+against an explicit `SemanticInterfaceCatalog`. Unused catalog entries do not
+change validation, artifact emission, or semantic identity.
+
+Domain checks remain exact: schema and version, identifiers, references,
+definition-family rules, authority stage, dependency/interface closure, and
+semantic collection or execution limits. Private constructors carry those
+facts forward so later stages do not repeat them defensively. A future network
+or third-party pack-ingestion boundary may add hardened streaming limits,
+isolation, fuzz gates, or signature policy when that boundary actually exists.
+
+The byte-complete schema, normalization rules, identities, and limits are
+defined in
+[ArtifactBlobV1 Protocol](artifact-blob-v1.md).

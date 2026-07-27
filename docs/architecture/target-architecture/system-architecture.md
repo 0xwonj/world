@@ -217,7 +217,8 @@ Owns:
 - source-level resolved and typed declarations;
 - complete lowering to family-specific executable IR;
 - authority and stage checking;
-- artifact canonicalization and hashing;
+- construction of `ArtifactData`, defs-owned validation against its supplied
+  `SemanticInterfaceCatalog`, and deterministic artifact encoding;
 - final artifact-digest locking;
 - cross-pack linking into a process-independent `RuntimeDefinitionSet`.
 
@@ -232,8 +233,8 @@ bundles into one immutable `EngineDistribution`.
 It exposes:
 
 - a serializable `SemanticInterfaceCatalog` of primitive signatures,
-  family/stage legality, authority and effect constraints, deterministic cost
-  schemas, interface versions, and exact interface digests;
+  family/stage legality, authority and effect constraints, current structural
+  or cost rules, interface versions, and exact interface digests;
 - the matching runtime implementations for engine installation;
 - exact identities for each semantic interface and implementation, from which
   the required semantic binding set is selected;

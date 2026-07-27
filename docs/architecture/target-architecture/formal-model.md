@@ -1263,14 +1263,23 @@ Authoring is a partial deterministic staged transformation:
 ```text
 parse_manifests
   -> resolve exact package/source graph
-  -> load and reverify compiled dependencies or compile sources topologically
+  -> compile sources topologically
   -> resolve names and type-check family-specific source forms
   -> lower to executable family IR
-  -> verify stage, authority, termination, and resource limits
-  -> canonical VerifiedPackArtifact
+  -> ArtifactData
+  -> validate(ArtifactData, SemanticInterfaceCatalog)
+  -> deterministic artifact encoding
+  -> sealed VerifiedPackArtifact
   -> finalize artifact-digest PackLock
   -> link immutable RuntimeDefinitionSet
   -> activate process-local ActivatedDefinitionRegistry
+
+loaded ArtifactEnvelope
+  -> format, version, length, and digest checks
+  -> decode ArtifactData
+  -> validate(ArtifactData, SemanticInterfaceCatalog)
+  -> sealed VerifiedPackArtifact
+  -> the same lock, link, and activation path
 ```
 
 These are semantic phases, not a requirement for one public AST/HIR/IR type per
@@ -1301,11 +1310,20 @@ CanonicalIdentity
   canonical semantic fingerprint
 
 ActivationValidation
-  serialized bytes never become an activated definition without revalidation
+  loaded serialized definitions cannot activate without decoding and the same
+  owner validation applied to compiler-produced ArtifactData
 
 RequiredInterfaceClosure
   activation matches every referenced semantic interface exactly; unused
   installed interfaces are irrelevant
+```
+
+Catalog-superset independence is:
+
+```text
+restrict(C, required(D)) = restrict(C', required(D))
+  implies
+validate(D, C) = validate(D, C')
 ```
 
 Compiler passes and optimizers may evolve internally. A new source language
@@ -1544,7 +1562,8 @@ state and operations to this model:
    binding;
 6. optimized projection/evaluation preserves observable results;
 7. negative tests show that authority, stage, freshness, identity, and
-   compatibility violations fail closed;
+   compatibility violations are rejected without a transition or partial
+   effect;
 8. every concrete attempt-scoped mutation of `Σ` is covered by one durable
    `RunAttemptControl` reservation, and recovery preserves its unique
    finalization cursor;

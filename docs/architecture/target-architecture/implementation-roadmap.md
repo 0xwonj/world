@@ -125,7 +125,8 @@ and generic decision paths are absent from the merged target state.
 - every world change is exactly one `Admit`, `Fire`, or `Manage`;
 - state, scheduler, history, cursor, and receipt publish atomically;
 - no external package can construct or replace the session head;
-- artifact loading and linking fail closed on invalid identity or closure;
+- artifact loading and linking reject invalid identity or closure before
+  session construction;
 - repeated execution yields identical semantic fingerprints;
 - no replaced public symbol or forbidden dependency edge remains;
 - validation scenarios 13 and 18 pass;
@@ -326,7 +327,8 @@ For the contracts introduced by the milestone:
 - formatting, workspace compilation, lints, tests, and whitespace checks pass;
 - the exact direct dependency allowlist passes;
 - focused unit, negative, state-machine, and compile-fail privacy tests pass;
-- durable values round-trip through untrusted decoding and reverification;
+- durable storage representations round-trip through decoding and owner
+  validation;
 - canonical identities and repeated-run fingerprints are stable;
 - every concrete authoritative head refines a valid formal `Σ`;
 - every concrete world publication maps to `Admit`, `Fire`, or `Manage`;

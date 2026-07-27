@@ -495,31 +495,33 @@ implementations.
   state;
 - comparisons can replace one lifecycle implementation at a time.
 
-## 13. An untrusted pack fails closed
+## 13. An invalid pack is rejected before activation
 
 ### Setup
 
-An activation set includes several adversarial cases: a tampered artifact
-payload, conflicting dependency constraints for one `PackKey`, an
-authority-illegal effect operation, a pathologically deep/expansive expression,
-and a required semantic interface absent from the installed engine
-distribution.
+An activation set includes several ordinary invalid cases: corrupt artifact
+bytes, a mismatched descriptor, conflicting dependency constraints for one
+`PackKey`, an authority-illegal effect operation, an excessive semantic
+collection, and a required semantic interface absent from the supplied
+catalog or installed engine distribution.
 
 ### Required flow
 
 1. The resolver selects an exact package/source graph before import/type
    checking; source packages do not pretend to have artifact digests yet.
-2. Artifact envelopes are reverified rather than trusted because they were
-   previously compiled or signed.
-3. Family verifiers enforce stage, termination, size, depth, cardinality, and
-   deterministic fuel rules.
-4. Artifact digests are known before `PackLock` is finalized.
-5. Linking verifies direct edges and produces a process-independent
+2. Compiler-produced and decoded `ArtifactData` converge on the same
+   catalog-aware domain validator.
+3. Loading checks the outer byte limit, descriptor, length, digest, schema,
+   and structure before domain validation.
+4. Family validators enforce stage, references, semantic cardinality,
+   structural termination, and deterministic execution limits.
+5. Artifact digests are known before `PackLock` is finalized.
+6. Linking verifies direct edges and produces a process-independent
    `RuntimeDefinitionSet`.
-6. Activation compares the exact required semantic-interface closure with the
+7. Activation compares the exact required semantic-interface closure with the
    installed `EngineDistribution` and produces an
    `ActivatedDefinitionRegistry`.
-7. Every invalid case fails before session construction.
+8. Every invalid case is rejected before session construction.
 
 ### Assertions
 
@@ -530,7 +532,7 @@ distribution.
   change definition-set or execution identity;
 - process-local intern IDs never appear as durable definition identity;
 - budget exhaustion has no partial runtime effect;
-- unknown or authority-illegal operations fail closed.
+- unknown or authority-illegal operations are rejected before activation.
 
 ## 14. Crash occurs before post-commit dispatch
 

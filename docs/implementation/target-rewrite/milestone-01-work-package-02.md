@@ -1,30 +1,71 @@
-# M1/W2: Definitions, Verified Artifacts, and Structured Authoring
+# M1/W2: Definitions, Artifacts, and Structured Authoring
 
 ## Status
 
-Proposed. W1 is complete. W2 begins after the artifact-format dependency
-decision in this plan is approved.
+Active.
+
+The deterministic CBOR storage decision and the correctness-focused validation
+model are approved. W2 implementation begins from the frozen
+[ArtifactBlobV1 Protocol](../../architecture/target-architecture/artifact-blob-v1.md).
 
 ## Goal
 
 Introduce the smallest complete immutable-content path:
 
 ```text
-structured pack source
-  -> exact source selection + checked pack declarations
-  -> deterministic artifact bytes
-  -> untrusted ArtifactEnvelope
-  -> sealed VerifiedPackArtifact
-  -> exact PackLock and ExactPackSet
-  -> immutable RuntimeDefinitionSet
+compiler path:
+  structured PackSource
+    -> exact source graph
+    -> ArtifactData
+    -> shared catalog-aware validation
+    -> deterministic ArtifactEnvelope + VerifiedPackArtifact
+
+loader path:
+  ArtifactEnvelope
+    -> descriptor/length/digest checks
+    -> decode ArtifactData
+    -> the same catalog-aware validation
+    -> VerifiedPackArtifact
+
+shared continuation:
+  ExactPackageSelection + VerifiedPackArtifact[]
+    -> private matching PackLock + ExactPackSet
+    -> RuntimeDefinitionSet
 ```
 
-The slice also defines the pure standard transfer vocabulary needed by later
+The slice also defines the pure standard transfer vocabulary required by later
 runtime work. It does not execute or activate that vocabulary.
+
+## Trust and validation assumption
+
+The current pack author and local authoring toolchain are host-trusted.
+Artifacts may still be corrupt, stale, mismatched, or incompatible. Validation
+therefore protects domain correctness and reproducibility; W2 does not build a
+hostile-input sandbox.
+
+Keep:
+
+- format, version, length, and digest checks;
+- exact identifiers, references, dependency closure, and interface digests;
+- family, stage, binding, event, and semantic collection invariants;
+- private construction of sealed values;
+- deterministic project-owned encoding and frozen vectors;
+- runtime revalidation and atomic publication in later work.
+
+Defer:
+
+- repeated compiler serialize/decode round trips;
+- load-time re-encoding equality;
+- per-node, per-string, depth, or total-allocation accounting;
+- mutation fuzzing as a completion gate;
+- signatures, hostile streaming ingestion, and process isolation.
+
+If a real third-party or network ingestion boundary appears, it receives its
+own hardened adapter without changing the domain model.
 
 ## Non-goals
 
-- textual syntax, a public parser API, or a final pack DSL;
+- textual syntax, a parser API, or a final pack DSL;
 - a universal expression tree, compiler-pass framework, definition-family
   trait, or configurable optimizer;
 - process definitions, authored duration, observation, projection, appraisal,
@@ -41,30 +82,36 @@ runtime work. It does not execute or activate that vocabulary.
 - [Target Rust Code Architecture](../../architecture/target-architecture/code-architecture.md)
 - [Formal System Model](../../architecture/target-architecture/formal-model.md)
 - [Extensibility and Research](../../architecture/target-architecture/extensibility-and-research.md)
-- [Cognition and Agency](../../architecture/target-architecture/cognition-and-agency.md)
+- [ArtifactBlobV1 Protocol](../../architecture/target-architecture/artifact-blob-v1.md)
+- [Architecture Decisions](../../architecture/target-architecture/decisions.md)
 - [Validation Scenarios](../../architecture/target-architecture/validation-scenarios.md)
 - [M0 preservation and baseline](milestone-00-preservation-and-baseline.md)
 - [Completed W1 plan and evidence](milestone-01-work-package-01.md)
 
-## Current-state evidence
+## W1 input
 
-W1 leaves one selected local package, `world-core`, with the frozen
-`world-canonical-v1` identity-preimage protocol and BLAKE3-256 content
-digests. There is no selected definition, authoring, standard, artifact, or
-runtime package.
+W1 leaves one selected local package, `world-core`, with:
 
-The target documents already fix the ownership and trust transitions, but do
-not yet fix:
+- the byte-complete `world-canonical-v1` identity protocol;
+- BLAKE3-256 content digests;
+- purpose-specific actor and entity identities;
+- integer virtual time and microsteps;
+- checked revisions.
 
-- identifier grammars and widths;
-- the exact `ArtifactBlobV1` byte format;
-- artifact decoder limits and unknown-field behavior;
-- canonical identity schemas for descriptors, fingerprints, locks, and sets;
-- the exact minimum action, condition, effect, event, and transfer schemas;
-- the source-snapshot identity carried into an exact lock.
+W2 may depend only on that public surface. It does not move pack-specific
+identities, diagnostics, limits, or serialization into core.
 
-Those are W2 decisions. They must become byte-complete before artifact code is
-treated as stable.
+## Approved registry dependency
+
+Add one direct registry dependency to `world-defs`:
+
+```toml
+minicbor = { version = "2.3.0", default-features = false, features = ["alloc"] }
+```
+
+Encoding and decoding use explicit owner-written calls. W2 enables no derive,
+Serde, `std`, or floating-point feature and introduces no second serialization
+framework.
 
 ## Package boundaries
 
@@ -73,307 +120,231 @@ The selected production graph becomes:
 ```text
 world-defs      -> world-core, minicbor
 world-authoring -> world-core, world-defs
-world-standard  -> world-core, world-defs
+world-standard  -> world-defs
 ```
 
-There is no dependency between `world-authoring` and `world-standard`.
+`world-standard` may add a direct `world-core` edge only if its implementation
+actually imports a core type. There is no dependency in either direction
+between `world-authoring` and `world-standard`.
 
 | Concern | Owner |
 |---|---|
-| Pack-qualified keys and checked definition values | `world-defs` |
-| Semantic-interface descriptors and exact catalog values | `world-defs` |
-| Artifact bytes, reverification, sealed artifacts, locks, exact sets, linking | `world-defs` |
-| Structured source, exact source graph, lowering, and authoring diagnostics | `world-authoring` |
-| Stable transfer keys, descriptor, declarations, and physical event vocabulary | `world-standard` |
+| Pack-qualified keys and checked leaf values | `world-defs` |
+| Semantic-interface descriptors and catalogs | `world-defs` |
+| `ArtifactData`, storage codec, validation, sealed artifacts | `world-defs` |
+| Exact selection, private lock, exact set, linking | `world-defs` |
+| Structured source, exact source graph, compilation diagnostics | `world-authoring` |
+| Stable transfer keys, descriptor, declaration, physical event vocabulary | `world-standard` |
 | Installed transfer implementation and runtime dispatch | deferred `world-standard-runtime` in W4 |
 | Activation and process-local IDs | deferred `world-runtime` in W4 |
 
-`world-defs` owns the full untrusted-to-trusted artifact boundary. The
-authoring plane can produce bytes but cannot mint a trusted artifact through a
-second path. The standard package contains no callback, mutable runtime
-access, or implementation registry.
+## Core APIs
 
-## Core abstractions
-
-The architecture is explained by four irreversible validation transitions:
+The public operations stay concrete:
 
 ```text
-PackSource
-  --compile--> ArtifactEnvelope (still untrusted)
-
-ArtifactEnvelope
-  --reverify--> VerifiedPackArtifact
-
-ExactPackageSelection + VerifiedPackArtifact[]
-  --finalize--> ExactPackSet (including its private PackLock)
-
-ExactPackSet
-  --link--> RuntimeDefinitionSet
-```
-
-Only the transitions that add a real invariant receive a distinct type.
-Parsing, name resolution, family checking, and lowering remain private
-functions until one of them has an independently useful producer, consumer,
-or test boundary.
-
-The public operations remain narrow:
-
-```text
-AuthoringCompiler::compile(CompileRequest) -> Compilation
-
-ArtifactVerifier::reverify(ArtifactEnvelope)
+ArtifactValidator::new(&SemanticInterfaceCatalog)
+  .validate(ArtifactData)
   -> Result<VerifiedPackArtifact, ArtifactError>
 
-ExactPackSet::finalize(exact_selection, verified_artifacts)
-  -> Result<ExactPackSet, LinkError>
+ArtifactValidator::new(&SemanticInterfaceCatalog)
+  .load(ArtifactEnvelope)
+  -> Result<VerifiedPackArtifact, ArtifactError>
+
+ExactPackSet::finalize(ExactPackageSelection, VerifiedPackArtifact[])
+  -> Result<ExactPackSet, PackSetError>
 
 DefinitionLinker::link(ExactPackSet)
   -> Result<RuntimeDefinitionSet, LinkError>
+
+AuthoringCompiler::new(&SemanticInterfaceCatalog)
+  .compile(CompileRequest)
+  -> Result<Compilation, DiagnosticSet>
 ```
 
-`ExactPackageSelection` is an untrusted, process-independent description of
-the resolved root, exact package coordinates, exact source-snapshot
-identities, and direct dependency edges. `ExactPackSet::finalize` proves that
-selection against the artifacts and privately creates the matching
-`PackLock`; callers cannot pair an arbitrary lock with artifacts.
-`DefinitionLinker::link` consumes that proof-carrying set. The compiler's
-encoder must feed its output through `ArtifactVerifier::reverify`; compiler
-output receives no privileged trust path.
+One private semantic function validates compiler-produced and decoded
+`ArtifactData`. The direct path validates and encodes once. The load path
+checks the envelope, decodes, and calls the same function. Each later boundary
+checks only the new invariant it introduces.
 
-## Proposed artifact-format decision
-
-### Recommendation
-
-Use a strict profile of RFC 8949 Core Deterministic CBOR for
-`ArtifactBlobV1`, implemented with explicit, owner-written `minicbor` calls:
-
-```toml
-minicbor = { version = "2.3.0", default-features = false, features = ["alloc"] }
-```
-
-The dependency has no default features. W2 enables neither derives, Serde,
-`std`, nor half-precision floating point. The artifact codec remains private
-to `world-defs`; no general encoding trait is added to domain types.
-
-The selected profile permits only:
-
-- definite-length arrays;
-- UTF-8 text and byte strings;
-- schema-selected bounded unsigned integers;
-- booleans;
-- explicit array-shaped variant and option encodings;
-- owner-validated ordered sequences.
-
-It forbids:
-
-- CBOR maps;
-- floating-point values;
-- negative integers;
-- tags;
-- indefinite-length items;
-- unknown variants or fields;
-- ignored trailing bytes.
-
-Every structural array has an exact arity. The decoder checks the outer byte
-limit before allocation, enforces fixed depth, node, string-byte, sequence,
-and total-allocation budgets, rejects duplicate or incorrectly ordered owner
-collections, requires exact end of input, then re-encodes and compares the
-original bytes byte-for-byte. Semantic verification follows only after those
-checks.
-
-The structural schema is specified in checked-in CDDL plus normative profile
-text and language-independent golden vectors. CDDL documents the accepted
-tree; the profile text fixes the additional deterministic and rejection rules.
-
-### Why this boundary
-
-RFC 8949 defines shortest-form integers and lengths, definite-length items,
-and deterministic ordering. Restricting the application profile to arrays and
-non-floating scalar values removes the format's remaining ordering and numeric
-ambiguities. `minicbor` provides a small, type-directed, non-allocating decoder
-over borrowed input while leaving domain limits and validation under
-`world-defs`.
-
-This is preferable to:
-
-- a bespoke codec, which offers control but creates a new cross-language wire
-  standard and parser burden;
-- Postcard, whose stable format still accepts non-minimal integer encodings
-  and delegates schema evolution outside the format;
-- Protocol Buffers, whose own documentation says deterministic serialization
-  is not canonical across implementations or versions;
-- `rkyv`, whose archived representation is Rust- and schema-layout-oriented;
-- `bincode`, whose current release line is explicitly unmaintained.
-
-Primary research:
-
-- [RFC 8949: CBOR, including deterministic encoding](https://www.rfc-editor.org/rfc/rfc8949.html)
-- [RFC 8610: CDDL](https://datatracker.ietf.org/doc/html/rfc8610)
-- [`minicbor` 2.3.0 package metadata](https://crates.io/crates/minicbor/2.3.0)
-- [`minicbor` decoder API](https://docs.rs/minicbor/2.3.0/minicbor/decode/struct.Decoder.html)
-- [Postcard wire-format specification](https://postcard.jamesmunns.com/wire-format)
-- [Protocol Buffers canonicalization warning](https://protobuf.dev/programming-guides/serialization-not-canonical/)
-- [`rkyv` format-control and compatibility documentation](https://docs.rs/rkyv/latest/rkyv/)
-- [`bincode` project status](https://docs.rs/crate/bincode/latest)
-
-### Identity separation
-
-The three byte domains remain distinct:
-
-```text
-artifact blob digest
-  = BLAKE3(exact accepted ArtifactBlobV1 CBOR bytes)
-
-runtime semantic fingerprint
-  = BLAKE3(world-canonical-v1 preimage over normalized behavior)
-
-definition-set and related semantic digests
-  = BLAKE3(world-canonical-v1 owner-defined preimages)
-```
-
-The external `ArtifactDescriptor` carries the artifact format version,
-algorithm, blob length, and blob digest. It is not included in its own digest.
-W2 does not define a second wire encoding for the envelope.
-
-Unknown material is rejected within a format version. Future evolution uses a
-new explicit container or family schema version and a new verifier; an old
-verifier never seals behavior it cannot interpret.
-
-This decision changes the artifact storage format and adds a dependency, so it
-requires explicit approval before Cargo or normative architecture documents
-are changed.
+`VerifiedPackArtifact`, `PackLock`, `ExactPackSet`, and
+`RuntimeDefinitionSet` have no public constructors or deserializers.
 
 ## Definition vocabulary
 
 ### Durable keys
 
-W2 freezes checked, bounded ASCII forms for:
+W2 implements the exact grammars and widths in the artifact protocol for:
 
 - `PackKey`;
 - `PackVersion { major, minor, patch }`;
 - `PackCoordinate`;
 - `LocalDefinitionName`;
 - `DefinitionKey = PackKey + LocalDefinitionName`;
-- `SemanticInterfaceKey` and operation names;
-- action binding and event field names.
+- `SemanticInterfaceKey` and nonzero interface version;
+- operation, parameter, binding, and event-field names.
 
-Version components have fixed integer widths and no prerelease or build
-syntax. Dependencies select exact `PackCoordinate` values. A pack has one
-local definition namespace across families, and durable numeric definition
-IDs do not exist.
-
-The schema specification must state each alphabet, maximum length, ordering,
-and canonical identity field order before constructors are implemented.
+Every semantic role has a distinct public type. A pack has one local
+definition namespace across families. Durable numeric definition IDs do not
+exist.
 
 ### Semantic interfaces
 
-`SemanticInterfaceDescriptor` is immutable declarative data:
+`SemanticInterfaceDescriptor` contains:
 
-- exact interface key and version;
-- typed operation signatures;
-- legal definition family and authority stage;
-- read/predicate or domain-effect authority classification;
-- deterministic fixed cost and structural limits;
+- exact key and version;
+- sorted operation descriptors;
+- operation kind: `Predicate` or `Effect`;
+- ordered named parameters of `Actor` or `Entity` kind;
 - exact descriptor digest.
 
-W2 needs only actor/entity binding values and the operations exercised by the
-standard transfer. Descriptors contain no compiler hook or runtime callback.
-An artifact embeds the exact verifier-complete descriptors it uses, allowing
-independent reverification. Later activation must still bind every descriptor
-digest to an installed trusted implementation.
+`SemanticInterfaceCatalog` is an immutable sorted collection with no duplicate
+key or conflicting descriptor. It contains declarations only—no callback,
+compiler hook, or runtime implementation.
 
-A `SemanticInterfaceCatalog` is an immutable checked collection used during
-authoring. Only the exact transitive descriptor closure actually referenced by
-a pack enters its artifact identity; an unused catalog superset changes
-nothing.
+Artifacts store only exact interface key/version/digest references. Validation
+resolves those references against the supplied catalog. An unused catalog
+superset changes neither emitted bytes nor semantic identity.
 
-### Minimum checked families
+### Minimum definition families
 
-Only four definition responsibilities enter W2:
+`ArtifactData` contains only:
 
-- named typed action bindings and one checked action definition;
-- stage-specific `RuntimeRequirement`, with no stage-erased condition root;
-- a nonempty, ordered, bounded effect program of semantic-interface calls;
-- a physical event schema and checked success-field mapping.
+- action definitions with named typed bindings;
+- `RuntimeRequirement` predicate calls;
+- a nonempty ordered effect-call sequence;
+- physical event definitions;
+- nonempty success-event mappings.
 
-The first standard declaration binds actor, item, source, and destination,
-checks the required binding relations, invokes the exact transfer interface,
-and declares an item-transferred physical event. It records no gift,
-coercion, gratitude, trust, or other actor-relative interpretation.
+There is no universal expression type. Requirement order is normalized because
+it is conjunction; effect and success-event order remains semantic.
 
-Ownership, capacity, resource conflict, accepted mutation, and event staging
-remain the responsibility of the trusted W4 transfer implementation and
-runtime revalidation. W2 defines the contract they must later implement; it
-does not simulate that authority in pack data.
+The first standard declaration uses:
 
-The transfer has no real authored-time consumer in M1, so W2 does not add an
-unused timing discriminator or duration field.
+- `world.standard@1.0.0`;
+- interface `world.standard.transfer@1`;
+- predicate `can-transfer-item`;
+- effect `transfer-item`;
+- action `transfer-item`;
+- physical event `item-transferred`;
+- actor, item, source, and destination bindings.
 
-## Artifact, lock, and set invariants
+The later trusted implementation owns current containment, authority, capacity,
+conflict handling, accepted mutation, and event staging. Pack data contains no
+callback, social interpretation, or authored duration.
 
-### Artifact verification
+## Artifact model
 
-`ArtifactEnvelope` is always untrusted. Reverification performs, in order:
+`ArtifactData` is the compiler/decoder domain representation. Its leaf
+identifiers and descriptors are checked, but construction does not claim
+whole-artifact validity.
 
-1. descriptor media-type, algorithm, version, and outer-length checks;
-2. exact BLAKE3 verification over the original blob;
-3. bounded strict `ArtifactBlobV1` decode;
-4. exact CBOR re-encoding equality;
-5. identifier, manifest, family, reference, stage, cost, and limit checks;
-6. embedded semantic-interface descriptor and closure checks;
-7. runtime semantic fingerprint recomputation;
-8. private construction of `VerifiedPackArtifact`.
+`ArtifactValidator`:
 
-A signature, cached origin, or compiler origin cannot skip a step.
+1. normalizes semantically unordered collections;
+2. validates identifiers, duplicates, references, bindings, stages, and
+   semantic limits;
+3. resolves exact interface references against the supplied catalog;
+4. derives the required-interface closure;
+5. computes `PackExportDigest` and `RuntimeSemanticFingerprint`;
+6. deterministically emits `ArtifactBlobV1` for direct data, or retains the
+   exact loaded envelope;
+7. privately constructs `VerifiedPackArtifact`.
 
-### Exact package closure
+`ArtifactValidator::load` first checks:
 
-M1 uses one exact artifact per `PackKey`, exact three-part versions, exact
-dependency coordinates, one root, and an acyclic closed graph. Missing,
-duplicate, conflicting, unreachable extra, or cyclic artifacts fail.
-Load/input order has no semantic meaning.
+- media type, format version, and digest algorithm;
+- the single 16 MiB outer byte limit;
+- declared versus actual length;
+- exact BLAKE3-256 blob digest;
+- exact structural schema and end of input.
 
-`PackLock` records:
+No general public artifact encoder is exposed.
 
-- resolver and schema versions;
-- the root coordinate;
-- sorted package coordinates and exact source-snapshot identities;
-- exact artifact and export digests;
-- exact resolved direct dependency edges;
-- exact required semantic-interface digests.
-
-All W2 definitions are explicitly exported. Import aliases, visibility rules,
-ranges, and partial overrides are deferred.
-
-Source-snapshot identity is graph provenance, not executable behavior. It
-enters `ExactPackageSelection` and `PackLock`, not `ArtifactBlobV1` or the
-runtime semantic fingerprint. This lets independently obtained identical
-artifact bytes retain distinct resolution provenance without changing their
-behavior-equivalence fingerprint.
-
-### Linking
-
-`ExactPackSet::finalize` rechecks root closure and creates the lock only after
-all blob digests are known. `DefinitionLinker` rechecks lock/artifact
-correspondence, direct edges, exported-symbol closure, global duplicate keys,
-cross-pack interface consistency, and the exact required-interface union.
-
-`RuntimeDefinitionSet` privately owns the immutable linked body and exposes
-only read-only identity and lookup operations. Its digest is:
+Exact blob identity and normalized semantic identity remain separate:
 
 ```text
-BLAKE3(
-  world-canonical-v1 domain
-  + canonical RuntimeDefinitionSet body without its digest
-)
+ArtifactDigest
+  = BLAKE3(exact stored ArtifactBlobV1 bytes)
+
+RuntimeSemanticFingerprint
+  = BLAKE3(world-canonical-v1 normalized pack semantics)
 ```
 
-Activation tables, numeric intern IDs, caches, dispatch functions, and mutable
-registries are absent.
+## Exact package closure
+
+`ExactPackageSelection` is a constructible description containing:
+
+- one root coordinate;
+- one selected coordinate per `PackKey`;
+- an owner-supplied `SourceSnapshotId`;
+- exact direct dependency coordinates.
+
+`ExactPackSet::finalize` proves:
+
+- one selected entry and artifact per `PackKey`;
+- exact coordinate and manifest-edge agreement;
+- one closed, reachable, acyclic root graph;
+- no missing, duplicate, conflicting, or extra package;
+- expected dependency export digests match;
+- the exact required-interface union.
+
+It privately constructs the matching `PackLock`. Callers cannot pair a lock
+with arbitrary artifacts.
+
+`DefinitionLinker` checks only definition-level cross-pack references and
+constructs `RuntimeDefinitionSet`.
+
+The identities intentionally separate provenance from runtime definition
+identity:
+
+- source changes with identical exact artifacts change `PackLockDigest`;
+- exact artifact closure and semantic fingerprints determine
+  `RuntimeDefinitionSetDigest`;
+- process-local activation indexes have no durable identity.
+
+## Structured authoring
+
+W2 source is programmatic:
+
+```text
+PackSource
+  source snapshot identity
+  exact coordinate
+  exact dependency coordinates
+  defs-owned action and event input data
+```
+
+Compilation:
+
+1. validates the exact source graph before definition references;
+2. processes packages in deterministic topological order;
+3. obtains dependency export digests;
+4. constructs and validates `ArtifactData`;
+5. derives `ExactPackageSelection`;
+6. finalizes and links the exact set;
+7. returns all envelopes plus `RuntimeDefinitionSet`, or one deterministic
+   nonempty `DiagnosticSet` and no partial output.
+
+Text spans, warnings, loaders, resolver traits, source maps, and public compiler
+passes are deferred.
+
+## Standard/authoring seam
+
+`world-standard` constructs defs-owned declarative data and its interface
+descriptor. It does not construct an authoring-owned source, depend on the
+compiler, or provide executable semantics.
+
+The two independent tests compare against the same frozen vector:
+
+- `world-authoring` compiles an equivalent transfer-shaped fixture;
+- `world-standard` validates its direct declaration.
+
+No Cargo edge between the two crates is needed.
 
 ## Target source layout
 
-Files appear only when their responsibility is implemented:
+Files appear only when their responsibility has code:
 
 ```text
 crates/
@@ -384,14 +355,11 @@ crates/
       lib.rs
       key.rs
       interface.rs
-      condition.rs
-      effect.rs
-      action.rs
-      event.rs
+      definition.rs
       artifact/
         mod.rs
         codec.rs
-        verify.rs
+      package.rs
       link.rs
 
   world-authoring/
@@ -407,67 +375,55 @@ crates/
       transfer.rs
 ```
 
-Modules may remain combined while small. This layout is an ownership map, not
-a requirement to create empty files.
+Modules split further only after an ownership or file-pressure reason exists.
 
 ## Work sequence
 
 ### 1. Freeze the W2 protocols
 
-- accept the artifact-format decision;
-- add an architecture decision separating deterministic artifact storage from
-  canonical semantic identity;
-- specify identifier grammars, integer widths, sort orders, domain labels,
-  artifact tag tables, CDDL, and fixed verifier limits;
-- add one manually reviewable golden artifact byte vector and expected digest
-  before implementing its decoder.
+- accept the correctness-focused validation model;
+- record D-031;
+- freeze identifier grammar, versions, artifact CDDL, tag table, semantic
+  normalization, identity preimages, limits, and standard transfer vector.
+
+Status: complete in documentation; implementation vectors remain to be
+computed.
 
 ### 2. Introduce checked definition values
 
 - add `world-defs` and its exact dependency edges;
-- implement keys, exact versions and dependencies, semantic-interface
-  descriptors/catalogs, and the four minimum definition responsibilities;
-- protect every collection and reference invariant with checked constructors
-  and targeted tests.
+- implement keys, versions, semantic-interface descriptors/catalogs, action
+  input, requirement calls, effect calls, events, and reusable errors;
+- protect local collection and signature invariants with targeted tests.
 
-### 3. Implement the artifact trust boundary
+### 3. Implement the artifact boundary
 
-- add private explicit CBOR encoding and bounded decoding;
-- add the untrusted descriptor/envelope and sealed verified artifact;
-- force emitted artifacts through the same reverification path as loaded
-  bytes;
-- add canonicality, tamper, limit, unknown-value, and no-trailing-byte tests.
+- implement private deterministic CBOR emission and ordinary decoding;
+- add descriptor, envelope, `ArtifactData`, shared validation, derived
+  identities, and sealed artifact;
+- compute the frozen standard descriptor and artifact vectors;
+- test direct validation and load convergence without compiler byte
+  round-tripping.
 
 ### 4. Implement exact closure and linking
 
-- validate a defs-owned exact package selection supplied by authoring or a
-  later artifact resolver;
-- finalize a proof-carrying exact set and private matching lock;
-- link exact symbols and semantic-interface closure;
-- compute frozen lock, export, semantic fingerprint, and definition-set
-  identity vectors;
-- add graph-order, duplicate, conflict, cycle, missing, and extra-package
-  tests.
+- add selection, private lock construction, and exact set finalization;
+- add definition linking and read-only lookup;
+- compute lock and definition-set vectors;
+- test order independence and graph/reference failures.
 
 ### 5. Add structured authoring and the standard transfer
 
-- add the generic programmatic source and deterministic compiler;
-- return complete output or deterministic owner-specific diagnostics, never a
-  partial trusted set;
-- add pure standard transfer keys, interface descriptor, checked declaration,
-  and physical event vocabulary;
-- prove authoring and standard construction reach the same frozen artifact
-  identity by comparing each side with the same golden vector, without adding
-  any dependency between their packages.
+- add deterministic programmatic compilation and diagnostics;
+- add pure standard interface and declaration values;
+- prove both leaves independently match the same frozen artifact identities.
 
 ### 6. Close the package
 
-- run the full verification matrix;
-- inspect public documentation and Cargo metadata for forbidden authority or
-  dependency edges;
-- reconcile the implementation with the formal model and target code
-  architecture;
-- record exact completion evidence and only then detail W3.
+- run the full verification matrix and executable dependency allowlist;
+- inspect public APIs and docs for authority or dependency leaks;
+- record exact completion evidence;
+- detail W3 only after every gate passes.
 
 ## Acceptance gates
 
@@ -484,43 +440,48 @@ world-authoring local dependencies =
   { world-core, world-defs }
 
 world-standard local dependencies =
-  { world-core, world-defs }
+  { world-defs }
+  or { world-core, world-defs } only if core is directly imported
 
 world-standard -> world-authoring = forbidden
 world-authoring -> world-standard = forbidden
 ```
 
-The only new direct registry dependency is approved `minicbor` with default
-features disabled and only `alloc` enabled. The resolved transitive closure is
-recorded and allowlisted after `Cargo.lock` is generated. Serde and another
+The only new direct registry dependency is `minicbor` on `world-defs`, with
+default features disabled and only `alloc` enabled. Serde and a second
 serialization framework are forbidden.
 
-### Trust and API
+### Domain and API
 
+- distinct identifiers accept exactly their frozen grammars;
+- descriptor and catalog construction reject duplicate/conflicting entries;
+- direct and decoded `ArtifactData` produce the same normalized definitions
+  and semantic fingerprint;
+- compiler output is encoded once, not decoded again;
+- loaded input receives descriptor, length, digest, schema, and domain checks;
+- missing catalog entries, digest mismatch, wrong operation stage/signature,
+  invalid binding, empty effect, and invalid event mapping are rejected;
 - `VerifiedPackArtifact`, `PackLock`, `ExactPackSet`, and
-  `RuntimeDefinitionSet` cannot be publicly constructed or deserialized;
-- compiler-produced bytes and loaded bytes use one reverification path;
-- exact-set construction cannot accept a caller-supplied mismatched lock;
-- source diagnostics, artifact failures, and link failures remain concrete
-  owner-specific types;
-- no numeric durable definition ID or runtime implementation object enters an
+  `RuntimeDefinitionSet` cannot be publicly constructed;
+- exact-set construction cannot accept a caller-supplied lock;
+- no durable numeric definition ID or runtime implementation enters an
   artifact or definition set.
 
-### Determinism and rejection
+### Determinism and closure
 
-- identical structured source produces identical artifact bytes, artifact
-  digest, semantic fingerprint, lock, and definition-set digest;
-- package, definition, and catalog input order do not alter identity;
-- unused installed/catalog interfaces do not alter identity;
-- tampered bytes, descriptor mismatch, non-shortest CBOR, indefinite items,
-  wrong arity, trailing bytes, unknown values, excessive depth/count/bytes,
-  duplicates, and incorrect ordering fail closed;
+- identical structured source produces identical project-emitted bytes,
+  artifact digest, semantic fingerprint, lock, and definition-set digest;
+- package and definition input order do not alter identity;
+- unused catalog entries do not alter validation or identity;
+- loader rejects descriptor mismatch, malformed structure, unknown
+  schema/tag, wrong arity, trailing bytes, outer-size excess, and semantic
+  collection-limit excess;
 - missing dependencies, cycles, extra packages, version conflicts, duplicate
-  definitions, missing exports, and interface key/digest conflicts fail;
-- invalid binding references, illegal stages, empty effects, and invalid event
-  mappings fail before sealing;
-- the standard artifact references exactly its transfer interface and physical
-  event contract.
+  definitions, export mismatch, and interface conflicts are rejected;
+- source-snapshot changes alter lock provenance but not identical artifact or
+  runtime-definition-set identity;
+- the standard artifact contains exactly its transfer requirement, effect, and
+  physical event contract.
 
 ### Commands
 
@@ -537,20 +498,21 @@ git diff --check
 ```
 
 The metadata and tree outputs receive executable exact allowlists after the
-dependency lock is created.
+dependency lock is generated.
 
 ## Decision triggers
 
 Stop before:
 
-- adding `minicbor` or accepting deterministic CBOR without explicit approval;
-- changing `world-canonical-v1` or using it as the artifact storage codec;
+- changing `world-canonical-v1`, the artifact protocol, or any frozen identity
+  preimage;
 - adding another serialization or compiler-framework dependency;
-- adding a production `world-authoring`/`world-standard` edge;
-- moving artifact verification outside `world-defs`;
-- adding a public trusted-value constructor or deserializer;
-- adding definition families or semantic operations without a transfer-slice
-  consumer;
+- adding a hardened hostile-ingestion boundary without a real external
+  consumer and explicit policy;
+- adding a Cargo edge between `world-authoring` and `world-standard`;
+- moving artifact validation outside `world-defs`;
+- adding a public sealed-value constructor or deserializer;
+- adding definition families or semantic operations without a slice consumer;
 - introducing runtime activation or executable transfer authority;
 - expanding exact M1 dependencies into ranges, aliases, override order, or a
   registry.
@@ -561,8 +523,8 @@ To be filled after every gate passes.
 
 ## W3 handoff
 
-W3 receives only immutable, sealed, process-independent definition values. It
-may read checked actions, requirements, effects, and events from
-`RuntimeDefinitionSet`, but cannot bypass exact artifacts, link proof, or
-semantic-interface identity. Activation and the trusted standard
-implementation remain W4 composition-root work.
+W3 receives immutable, sealed, process-independent definition values. It may
+read checked actions, requirements, effects, and events from
+`RuntimeDefinitionSet`, but cannot bypass artifact validation, exact-set
+finalization, or semantic-interface identity. Activation and the trusted
+standard implementation remain W4 composition-root work.

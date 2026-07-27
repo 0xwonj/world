@@ -25,7 +25,7 @@ not create a second definition.
 | Time, scheduler, authority records, request ledgers, atomic publication, run-attempt recovery, checkpoints, archives, replay | `runtime-persistence-and-scale.md` |
 | Compiler stages, pack/extension trust, artifact closure, research/run/analysis artifacts, trace products | `extensibility-and-research.md` |
 | Decision rationale and rejected alternatives | `decisions.md` |
-| Conformance examples and adversarial acceptance tests | `validation-scenarios.md` |
+| Boundary, failure, recovery, and conformance scenarios | `validation-scenarios.md` |
 | Stable milestone order, outcomes, and exit gates | `implementation-roadmap.md` |
 | Active milestone status, work packages, and completion evidence | `docs/implementation/target-rewrite/` |
 | Mapping from superseded documents/code to the target | `legacy-reconciliation.md` |
@@ -180,11 +180,13 @@ Recommended reading order:
 6. [Extensibility and Research](extensibility-and-research.md) — packs,
    executable definition families, trust tiers, versioning, optional
    evaluators, experiments, and observability.
+   [`ArtifactBlobV1`](artifact-blob-v1.md) is its byte-complete compiled-pack
+   protocol appendix.
 7. [Architecture Decisions](decisions.md) — compact records of the decisions
    that constrain implementation.
-8. [Validation Scenarios](validation-scenarios.md) — adversarial scenarios
-   used to test whether the boundaries are operational rather than merely
-   descriptive.
+8. [Validation Scenarios](validation-scenarios.md) — boundary, failure, and
+   recovery scenarios used to test whether the architecture is operational
+   rather than merely descriptive.
 9. [Implementation Roadmap](implementation-roadmap.md) — stable milestones,
    outcomes, and exit gates for replacing the current implementation.
 10. [Legacy Reconciliation](legacy-reconciliation.md) — adopted, refined, and

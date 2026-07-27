@@ -2,8 +2,7 @@
 
 ## Status
 
-Active. W1 is complete. W2 is the proposed next detailed work package and is
-waiting on its artifact-format dependency decision.
+Active. W1 is complete and W2 is the active detailed work package.
 
 ## Goal
 
@@ -47,11 +46,12 @@ selectable path nor a compatibility layer.
 
 ### W2: Definitions, artifacts, and authoring
 
-- [Proposed detailed plan](milestone-01-work-package-02.md)
+- [Active detailed plan](milestone-01-work-package-02.md)
 - rewrite `world-defs` with pack-qualified keys and the minimum definition
   families selected in M0;
-- implement untrusted envelope decoding, reverification, sealed
-  `VerifiedPackArtifact`, exact lock, exact set, and definition linking;
+- implement unchecked envelope decoding plus shared catalog-aware
+  `ArtifactData` validation, sealed `VerifiedPackArtifact`, exact lock, exact
+  set, and definition linking;
 - implement target-shaped programmatic authoring and diagnostics;
 - add the standard transfer pack and declarative interface requirement.
 
