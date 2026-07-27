@@ -45,14 +45,14 @@ same private atomic publication capability.
 Simulation time is independent of wall-clock time:
 
 ```text
-SimTick
+SimTime
   quantized integer time chosen by ExecutionConfigArtifact
 
 Microstep
-  causal index within one SimTick
+  causal index within one SimTime
 
 SimMoment
-  (SimTick, Microstep)
+  (SimTime, Microstep)
 
 SimDuration
   checked integer duration
@@ -130,7 +130,7 @@ ScheduledTrigger
 The ordering key is:
 
 ```text
-(SimTick, Microstep, engine lane, canonical sequence)
+(SimTime, Microstep, engine lane, canonical sequence)
 ```
 
 Engine lanes are a small, named, versioned set used for causal protocol, not a

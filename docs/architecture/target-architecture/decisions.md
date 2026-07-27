@@ -532,10 +532,28 @@ only extend target-shaped structures.
 ## D-030: Canonical identities use an explicit versioned byte protocol
 
 Identity-bearing values use `world-canonical-v1` and BLAKE3-256. Each preimage
-starts with the protocol identity and one mandatory, length-framed ASCII domain
-label. Owners then write fields explicitly using fixed-width unsigned
-big-endian integers, checked enum discriminants, exact length-framed bytes or
-UTF-8, explicit option tags, and length-framed ordered sequences.
+starts with the literal ASCII bytes `world-canonical-v1`, followed by one
+mandatory domain encoded as a `u64` big-endian byte length and its exact ASCII
+bytes. Domain labels are 1–64 bytes and match
+`[a-z][a-z0-9-]{0,63}`.
+
+The body protocol is byte-complete:
+
+- unsigned integers are exactly `u8`, `u16`, `u32`, `u64`, or `u128`;
+  multi-byte integers are big-endian;
+- a boolean is one byte: false is `0` and true is `1`;
+- an enum is a `u32` big-endian discriminant selected through an exhaustive
+  match owned by its schema;
+- bytes are a `u64` big-endian byte length followed by the exact bytes;
+- text is its `u64` big-endian UTF-8 byte length followed by exact UTF-8 bytes;
+- an option begins with one byte: absent is `0`, present is `1` followed by
+  the encoded value;
+- an ordered sequence is a `u64` big-endian element count followed by each
+  element in order.
+
+The literal protocol prefix is not itself length-framed. Every identity schema
+uses a distinct versioned domain label. Changing that schema's field set,
+field order, or interpretation without changing the domain label is forbidden.
 
 Maps and floating-point values are forbidden in identity preimages. A logical
 map is first converted by its owner into a sequence sorted by the canonical
@@ -544,12 +562,16 @@ identity-critical identifiers define their own accepted alphabet and
 normalization before encoding. Identity is never derived from Rust memory
 layout, `std::hash::Hash`, debug/display text, or a convenience serializer.
 
+The digest is the standard unkeyed BLAKE3 hash of the complete preimage using
+its default 32-byte output. Keyed hashing and key derivation are not this
+protocol.
+
 This small protocol separates durable identity from storage and wire formats,
 keeps golden vectors implementable in other languages, and makes schema/domain
-evolution explicit. BLAKE3 provides a fixed 32-byte digest and an official Rust
-implementation with published cross-implementation test vectors. The
-implementation pins the algorithm in the protocol identifier and artifact
-metadata rather than treating a crate version as semantic identity.
+evolution explicit. BLAKE3 provides an official Rust implementation with
+published cross-implementation test vectors. The implementation pins the
+algorithm in the protocol identifier and artifact metadata rather than
+treating a crate version as semantic identity.
 
 Primary references:
 

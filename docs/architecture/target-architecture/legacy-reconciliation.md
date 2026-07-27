@@ -65,34 +65,37 @@ The following earlier structures are not target constraints:
 These internal structures receive no compatibility facade, alias, format
 importer, feature-selected old path, or dual execution path.
 
-## Current implementation status
+## Preserved pre-redesign baseline
 
-The existing `world-context` and `world-decision` work is implementation
-evidence and a source of reusable tests, typed values, projection logic, and
-trace ideas. It is not the normative production control plane.
+The preservation branch contains the former `world-context` and
+`world-decision` implementation. It remains evidence and a source of reusable
+test ideas, typed values, projection logic, and trace concepts, but it is not
+the normative production control plane and is absent from the rewrite tree.
 
-In particular:
+For that preserved baseline:
 
-- the current generic runner is deleted rather than migrated; future
+- the generic runner was deleted rather than migrated; future
   pass-graph research starts as a new implementation behind one lifecycle
   port;
 - unused representations should not be migrated automatically;
-- current action/context work should be evaluated against grounded candidate,
+- preserved action/context work should be evaluated against grounded candidate,
   availability, and dependency-witness contracts;
-- the current `world-engine -> world-authoring` Cargo dependency is known
-  implementation drift; the target engine consumes verified/linked artifacts
-  and must not depend on authoring;
+- the former `world-engine -> world-authoring` Cargo dependency was known
+  implementation drift and was removed with the legacy graph; the future
+  target engine consumes verified/linked artifacts and must not depend on
+  authoring;
 - `world-lab` and `world-cli` are target product boundaries, not current
   workspace crates; they are introduced only with the experiment/CLI vertical
   slices in the roadmap;
-- `world-standard` remains an optional composition-root choice rather than a
-  dependency of generic engine, context, or authoring contracts;
+- the future `world-standard` remains an optional composition-root choice
+  rather than a dependency of generic engine, context, or authoring contracts;
 - no compatibility facade preserves the superseded pipeline.
 
-The first target-state merge combines the definition/artifact foundation and
-minimal runtime vertical slice, then deletes the superseded authority and
-decision paths in the same architectural cut. Later slices extend only the
-target structures. The exact cutover is defined by the active
+The rewrite cutover removed the complete selectable pre-redesign crate graph
+before constructing the target slice. The first target-state merge combines
+that clean foundation with the definition/artifact foundation and minimal
+runtime vertical slice. Later slices extend only target structures. The exact
+cutover is defined by the active
 [rewrite roadmap](implementation-roadmap.md) and
 [Target Rust Code Architecture](code-architecture.md).
 

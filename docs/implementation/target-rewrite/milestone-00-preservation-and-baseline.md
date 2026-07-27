@@ -63,11 +63,13 @@ general serialization format.
 
 ```text
 protocol: world-canonical-v1
-digest: BLAKE3-256
-domain separation: mandatory ASCII identity-domain label in every preimage
+digest: standard unkeyed BLAKE3, default 32-byte output
+prefix: literal ASCII "world-canonical-v1", not length-framed
+domain separation: u64 big-endian length and exact ASCII domain bytes
+domain grammar: 1–64 bytes matching [a-z][a-z0-9-]{0,63}
 integers: fixed-width unsigned big-endian
 booleans: one byte, 0 or 1
-enums: checked u32 discriminant
+enums: u32 discriminant selected through an exhaustive owner match
 bytes and UTF-8 strings: u64 byte length followed by exact bytes
 optional values: explicit absent/present tag
 sequences: u64 element count followed by ordered elements
@@ -75,6 +77,7 @@ maps: forbidden in identity preimages; callers canonicalize to sorted sequences
 floats: forbidden in identity preimages
 Unicode normalization: none inside the protocol; owning identifier types
   validate their accepted alphabet before encoding
+schema evolution: every identity schema uses a distinct versioned domain label
 ```
 
 The owner writes fields explicitly. Identity is never derived from Rust memory

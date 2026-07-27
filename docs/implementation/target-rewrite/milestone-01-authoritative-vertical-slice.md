@@ -36,11 +36,12 @@ selectable path nor a compatibility layer.
 
 ### W1: Workspace cutover and canonical core
 
+- [Detailed active plan](milestone-01-work-package-01.md)
 - remove the complete old dependency closure and every incoming manifest edge
   from the active workspace;
 - retain only a compile-clean target foundation subgraph;
 - rewrite `world-core` around canonical bytes, content digests,
-  purpose-specific identities, exact time, revisions, and checked budgets;
+  purpose-specific identities, virtual time, and revisions;
 - add golden canonical vectors and dependency-allowlist checks.
 
 ### W2: Definitions, artifacts, and authoring
@@ -70,10 +71,12 @@ selectable path nor a compatibility layer.
 - implement trusted standard transfer semantics in `world-standard-runtime`;
 - drive the complete interaction through a public `ControllerRequest`.
 
-### W5: Deletion and conformance
+### W5: Conformance and absence proof
 
-- delete the old mutable model, runtime, context, and generic decision code;
-- remove `world-engine -> world-authoring`;
+- prove the old mutable model, runtime, context, and generic decision code
+  removed during the workspace cutover have not re-entered;
+- prove the target-shaped `world-engine` has no dependency on
+  `world-authoring`;
 - add black-box conformance and owner-local privacy/authority tests;
 - prove no replaced symbol or forbidden dependency edge remains.
 

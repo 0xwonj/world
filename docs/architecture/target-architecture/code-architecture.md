@@ -1710,7 +1710,7 @@ delete an incompletely migrated behavior. A row without replacement behavior,
 such as an invalid dependency edge or an unused generic runner, uses only the
 structural gate.
 
-| Current structure | Deletion gate |
+| Preserved pre-redesign structure | Deletion gate |
 |---|---|
 | `world-engine -> world-authoring` | start of M1 |
 | `DefinitionRegistry` | exact runtime definition set and activation exist |

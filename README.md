@@ -22,7 +22,13 @@ The frontend is not the source of truth. The simulation core is.
 ## Docs
 
 - [Vision](docs/vision.md)
-- Architecture
+- Current architecture and execution
+  - [Normative Target Architecture](docs/architecture/target-architecture/README.md)
+  - [Formal System Model](docs/architecture/target-architecture/formal-model.md)
+  - [Target Rust Code Architecture](docs/architecture/target-architecture/code-architecture.md)
+  - [Execution Roadmap](docs/architecture/target-architecture/implementation-roadmap.md)
+  - [Active Rewrite Status](docs/implementation/target-rewrite/README.md)
+- Earlier architecture inputs (non-normative)
   - [Architecture README](docs/architecture/README.md)
   - [Architecture Roadmap](docs/architecture/roadmap.md)
   - [Architecture Decisions](docs/architecture/ADR.md)
