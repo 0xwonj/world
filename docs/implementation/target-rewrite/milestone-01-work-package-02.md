@@ -2,10 +2,10 @@
 
 ## Status
 
-Active.
+Complete.
 
 The deterministic CBOR storage decision and the correctness-focused validation
-model are approved. W2 implementation begins from the frozen
+model are now implemented under the frozen
 [ArtifactBlobV1 Protocol](../../architecture/target-architecture/artifact-blob-v1.md).
 
 ## Goal
@@ -245,7 +245,8 @@ whole-artifact validity.
 2. validates identifiers, duplicates, references, bindings, stages, and
    semantic limits;
 3. resolves exact interface references against the supplied catalog;
-4. derives the required-interface closure;
+4. proves that every resolved interface-table entry is used exactly by the
+   artifact's calls;
 5. computes `PackExportDigest` and `RuntimeSemanticFingerprint`;
 6. deterministically emits `ArtifactBlobV1` for direct data, or retains the
    exact loaded envelope;
@@ -311,6 +312,7 @@ W2 source is programmatic:
 PackSource
   source snapshot identity
   exact coordinate
+  EngineProtocolVersion
   exact dependency coordinates
   defs-owned action and event input data
 ```
@@ -386,8 +388,7 @@ Modules split further only after an ownership or file-pressure reason exists.
 - freeze identifier grammar, versions, artifact CDDL, tag table, semantic
   normalization, identity preimages, limits, and standard transfer vector.
 
-Status: complete in documentation; implementation vectors remain to be
-computed.
+Status: complete, including the frozen implementation vectors.
 
 ### 2. Introduce checked definition values
 
@@ -395,6 +396,8 @@ computed.
 - implement keys, versions, semantic-interface descriptors/catalogs, action
   input, requirement calls, effect calls, events, and reusable errors;
 - protect local collection and signature invariants with targeted tests.
+
+Status: complete.
 
 ### 3. Implement the artifact boundary
 
@@ -405,6 +408,8 @@ computed.
 - test direct validation and load convergence without compiler byte
   round-tripping.
 
+Status: complete.
+
 ### 4. Implement exact closure and linking
 
 - add selection, private lock construction, and exact set finalization;
@@ -412,11 +417,15 @@ computed.
 - compute lock and definition-set vectors;
 - test order independence and graph/reference failures.
 
+Status: complete.
+
 ### 5. Add structured authoring and the standard transfer
 
 - add deterministic programmatic compilation and diagnostics;
 - add pure standard interface and declaration values;
 - prove both leaves independently match the same frozen artifact identities.
+
+Status: complete.
 
 ### 6. Close the package
 
@@ -424,6 +433,8 @@ computed.
 - inspect public APIs and docs for authority or dependency leaks;
 - record exact completion evidence;
 - detail W3 only after every gate passes.
+
+Status: complete.
 
 ## Acceptance gates
 
@@ -497,8 +508,55 @@ rg -n 'DefinitionId|DefinitionRegistry|VersionAnchor|WorldModel|CausalRuntime|De
 git diff --check
 ```
 
-The metadata and tree outputs receive executable exact allowlists after the
-dependency lock is generated.
+The full metadata output must also pass this executable allowlist:
+
+```bash
+cargo metadata --locked --all-features --format-version 1 |
+  jq -e '
+    ([.packages[] | select(.source == null) | .name] | sort ==
+      ["world-authoring", "world-core", "world-defs", "world-standard"]) and
+    (.workspace_members | length == 4) and
+    (.workspace_default_members == .workspace_members) and
+    ([.packages[] | select(.source == null) |
+      {name, dependencies: ([.dependencies[] |
+        {name,
+         source: (if .source == null then "local" else .source end),
+         uses_default_features,
+         features}] | sort_by(.name))}] | sort_by(.name) == [
+      {name: "world-authoring", dependencies: [
+        {name: "world-core", source: "local",
+         uses_default_features: true, features: []},
+        {name: "world-defs", source: "local",
+         uses_default_features: true, features: []}
+      ]},
+      {name: "world-core", dependencies: [
+        {name: "blake3",
+         source: "registry+https://github.com/rust-lang/crates.io-index",
+         uses_default_features: false, features: []}
+      ]},
+      {name: "world-defs", dependencies: [
+        {name: "minicbor",
+         source: "registry+https://github.com/rust-lang/crates.io-index",
+         uses_default_features: false, features: ["alloc"]},
+        {name: "world-core", source: "local",
+         uses_default_features: true, features: []}
+      ]},
+      {name: "world-standard", dependencies: [
+        {name: "world-defs", source: "local",
+         uses_default_features: true, features: []}
+      ]}
+    ]) and
+    ([.resolve.nodes[].id as $id |
+      .packages[] |
+      select(.id == $id) |
+      .name] | sort == [
+        "arrayref", "arrayvec", "blake3", "cc", "cfg-if",
+        "constant_time_eq", "cpufeatures", "find-msvc-tools", "libc",
+        "minicbor", "shlex", "world-authoring", "world-core",
+        "world-defs", "world-standard"
+      ])
+  '
+```
 
 ## Decision triggers
 
@@ -519,12 +577,78 @@ Stop before:
 
 ## Completion evidence
 
-To be filled after every gate passes.
+```text
+implementation commit:
+  bdb0e5638a5ac54d1702ad4718b479298d9dc4dc
+
+selected local packages:
+  world-core
+  world-defs
+  world-authoring
+  world-standard
+
+direct local dependency graph:
+  world-defs      -> world-core
+  world-authoring -> world-core, world-defs
+  world-standard  -> world-defs
+
+new registry dependency:
+  minicbor 2.3.0, default features disabled, alloc only
+
+resolved registry closure:
+  arrayref, arrayvec, blake3, cc, cfg-if, constant_time_eq,
+  cpufeatures, find-msvc-tools, libc, minicbor, shlex
+
+tracked Cargo manifests:
+  Cargo.toml
+  crates/world-core/Cargo.toml
+  crates/world-defs/Cargo.toml
+  crates/world-authoring/Cargo.toml
+  crates/world-standard/Cargo.toml
+```
+
+Verified results:
+
+- checked domain inputs converge through one catalog-aware artifact validator;
+  direct validation encodes once, while loading checks the envelope, decodes,
+  and invokes the same semantic function without re-encoding;
+- project-emitted deterministic CBOR and an accepted longer-form CBOR integer
+  have different exact artifact digests but identical normalized definitions,
+  export digests, and runtime semantic fingerprints;
+- format, length, digest, outer-size, schema, tag, structural arity, interface
+  slot, collection, reference, stage, binding, event, and namespace failures
+  are covered at their owning boundaries;
+- exact selection proves coordinate correspondence, graph closure, dependency
+  exports, engine protocol, and interface union before the linker adds
+  cross-pack event existence and signature checks;
+- source ordering does not affect compilation, source identity affects only
+  lock provenance, and compiler failure returns one deterministic nonempty
+  diagnostic set with no partial compilation;
+- independent `world-authoring` and `world-standard` fixtures match the same
+  403-byte transfer artifact and all seven frozen protocol vectors;
+- sealed-value compile-fail tests prove that `VerifiedPackArtifact`,
+  `PackLock`, `ExactPackSet`, and `RuntimeDefinitionSet` cannot be publicly
+  constructed;
+- 50 unit/integration tests and five compile-fail doctests passed;
+- locked metadata passed the executable exact allowlist, the dependency tree
+  matched the graph above, exactly five Cargo manifests were present, and the
+  superseded-symbol scan returned no match;
+- formatting, locked workspace check, warning-free Clippy, locked workspace
+  tests, warning-free API documentation, metadata, dependency tree, manifest
+  scan, and `git diff --check` passed.
+
+The final balance audit removed recoverable error paths for infallible
+in-memory encoding and built-in declarations, repeated package-count and
+compiler-finalization checks, an undocumented interface-parameter limit, and
+unused public DTO decomposition methods. Decoder pre-allocation limits,
+semantic collection limits, exact closure checks, and cross-pack link checks
+remain because each protects a distinct correctness boundary.
 
 ## W3 handoff
 
-W3 receives immutable, sealed, process-independent definition values. It may
-read checked actions, requirements, effects, and events from
+The [active W3 plan](milestone-01-work-package-03.md) receives immutable,
+sealed, process-independent definition values. It may read checked actions,
+requirements, effects, and events from
 `RuntimeDefinitionSet`, but cannot bypass artifact validation, exact-set
 finalization, or semantic-interface identity. Activation and the trusted
 standard implementation remain W4 composition-root work.

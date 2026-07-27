@@ -17,7 +17,7 @@ Three representations have different meanings:
 
 ```text
 ArtifactData
-  normalized domain data produced by the compiler or decoder
+  compiler- or decoder-produced domain data
 
 ArtifactBlobV1
   deterministic CBOR emitted from validated ArtifactData
@@ -275,12 +275,14 @@ The shared validator proves:
 - call arity and binding value kinds match the operation signature;
 - every referenced binding exists;
 - effects and success-event lists are nonempty;
-- every referenced event is exported by this pack or a declared dependency;
+- every local event reference resolves to an event exported by this pack;
+- every cross-pack event reference names a declared direct dependency;
 - every local event field is mapped exactly once with the matching value kind;
 - every collection remains within its semantic limit.
 
-Cross-pack event existence and expected dependency export digests are checked
-when the exact artifact set is finalized and linked.
+Cross-pack event existence, field compatibility, and expected dependency
+export digests are checked when the exact artifact set is finalized and
+linked.
 
 ## Semantic-interface descriptors
 
@@ -314,6 +316,11 @@ Descriptors contain no callback, runtime implementation, compiler hook,
 generic value tree, or embedded copy inside an artifact. W2 bounds operation
 count and effect-call count. Generalized execution cost metadata is deferred
 until runtime work budgeting has a concrete consumer.
+
+One catalog selects exactly one active descriptor for each interface key.
+Version and digest remain explicit in artifacts, while source calls can name
+the durable key without an ambiguous local version choice. An exact pack set
+therefore cannot compose parallel versions of the same interface key.
 
 An unused catalog superset has no effect:
 
@@ -599,17 +606,26 @@ social interpretation, or authored duration.
 
 ## Required vectors and tests
 
-W2 freezes:
+The standard transfer declaration freezes these values:
 
-- one semantic-interface descriptor preimage and digest;
-- one deterministic `ArtifactBlobV1` byte vector and blob digest;
-- the standard pack export digest and runtime semantic fingerprint;
-- one single-pack lock digest;
-- one runtime-definition-set digest.
+| Value | Frozen vector |
+|---|---|
+| Semantic-interface digest | `70f1b02ad7847bada652d0631a1385ff997dcefe9674d0ac7566a190cc3f2067` |
+| ArtifactBlobV1 length | `403` bytes |
+| Artifact digest | `e66fb079d4c9716ab4307a2d30c09eb5cb4cb491dacd29f3a337f2576ffe3321` |
+| Pack export digest | `a88a5915d1d488aea65d5175ef5e1cc705cb77f5e6c4d820f14de3de98ea6d42` |
+| Runtime semantic fingerprint | `95e414f0ad40e23c032fa991e6c142f506422da3aebe29e311c414c0322c1d8c` |
+| Single-pack lock digest | `afddcc97a203fe8933ec2ed9417bcbad1df82d96693a7bce4b94048f8b0b78c2` |
+| Runtime definition-set digest | `38fae8323c548dfd14e38e3b42485bf54cb41d9a531bf2f70d6bb51f644b67a3` |
 
-Tests cover deterministic emission, ordinary encode/load round trips,
-descriptor length/digest mismatch, unsupported schema/tag, wrong array arity,
-trailing bytes, semantic collection boundaries, invalid identifiers,
+The lock vector uses `SourceSnapshotId([0x53; 32])`, the standard pack as
+root, and no dependencies. Exact emitted bytes and all identities are asserted
+in
+[`crates/world-standard/tests/transfer.rs`](../../../crates/world-standard/tests/transfer.rs).
+
+Tests cover deterministic emission, direct emission/load convergence,
+descriptor format/length/digest mismatch, unsupported schema/tag, wrong array
+arity, trailing bytes, semantic collection boundaries, invalid identifiers,
 references, stages, duplicates, graph closure, and linking.
 
 Mutation fuzzing, hostile allocation accounting, signature policy, and

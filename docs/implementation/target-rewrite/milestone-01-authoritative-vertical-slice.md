@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. W1 is complete and W2 is the active detailed work package.
+Active. W1 and W2 are complete; W3 is the active detailed work package.
 
 ## Goal
 
@@ -46,7 +46,7 @@ selectable path nor a compatibility layer.
 
 ### W2: Definitions, artifacts, and authoring
 
-- [Active detailed plan](milestone-01-work-package-02.md)
+- [Completed plan and evidence](milestone-01-work-package-02.md)
 - rewrite `world-defs` with pack-qualified keys and the minimum definition
   families selected in M0;
 - implement unchecked envelope decoding plus shared catalog-aware
@@ -57,6 +57,7 @@ selectable path nor a compatibility layer.
 
 ### W3: Runtime authority
 
+- [Active detailed plan](milestone-01-work-package-03.md)
 - add private session head, cursor, root construction, record draft/seal/apply,
   and an in-memory atomic repository;
 - implement attempt creation, reservation, receipt, finalization, and

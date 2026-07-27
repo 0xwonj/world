@@ -593,7 +593,7 @@ arbitrary-code execution.
 private, explicit `minicbor` calls in `world-defs`. The artifact codec is a
 storage format, not `world-canonical-v1`, a public serialization framework, or
 a Serde surface. The emitter uses definite arrays, explicit variants, bounded
-unsigned values, UTF-8 text, bytes, and booleans. Maps, floating point, and
+unsigned values, UTF-8 text, and bytes. Maps, floating point, and
 indefinite values are outside the emitted schema.
 
 Both construction paths converge on one semantic operation:

@@ -153,8 +153,9 @@ work, termination, and attempt reconciliation.
 - explicit footprints and total deterministic conflict resolution;
 - rejection-only valid fallback;
 - complete reaction and lifecycle-control records;
-- complete attempt reservation, disposition, receipt, cancellation, and
-  reconciliation state machines;
+- generalize the M1 in-memory reserved-step subset into the complete
+  backend-independent attempt reservation, disposition, receipt, cancellation,
+  reconciliation, termination, and finalization state machines;
 - deterministic budgets, keyed randomness, and property-based invariant tests.
 
 ### Exit gate
