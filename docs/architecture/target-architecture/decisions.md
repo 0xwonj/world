@@ -29,9 +29,22 @@ Domain, epistemic, social, and agency state are accepted semantic partitions
 with typed commit gates. Runtime-control and scheduler state are distinct
 authoritative operational partitions with kernel-owned typed protocols.
 
-A physical effect cannot directly assert an actor's belief or social meaning.
-An appraisal cannot directly change physical truth. Cross-partition
-transactions are explicit and verified.
+A `Belief` is an actor-relative epistemic proposition. An
+`ActorSocialInterpretation` is an actor-scoped accepted social meaning. An
+`IntersubjectiveClaim` records that identified parties asserted, declared, or
+committed something without proving its proposition. An `InstitutionalFact`
+is constituted and accepted under installed rules in a declared jurisdiction;
+it is neither physical truth nor automatically any actor's belief. The
+epistemic gate owns beliefs. The social gate owns actor-scoped
+interpretations, intersubjective claims, relationships, and institutional
+facts. The domain gate owns physical and systemic facts, including possession
+and mechanical control.
+
+A physical effect cannot directly assert a belief, social interpretation,
+claim, or institutional fact. A social transition cannot apply a physical
+effect, and an actor-relative interpretation cannot mint an intersubjective
+claim or institutional fact. Cross-partition transactions are explicit and
+verified.
 
 ## D-004: Cognition is a set of lifecycles, not one pipeline
 
@@ -69,9 +82,12 @@ only references that durable opportunity.
 ## D-006: Decisions use actor-relative immutable inputs
 
 For every lifecycle, the trusted coordinator binds the invocation to one
-authority head, global revision, raw cause, and dependency witness in an
-engine-private envelope. The evaluator consumes only the separate
-projection-safe actor-relative payload.
+authority head, global revision, raw cause, and expected accepted-state
+versions in an engine-private envelope. A retained or deferred invocation also
+binds its projector-owned `LifecycleReadWitnessK`; M4's first concrete type is
+`ActionReadWitness`. The evaluator consumes only the separate projection-safe
+actor-relative payload. This retained witness is distinct from runtime's
+same-step `PreparationReadEvidence`.
 
 `Unavailable` and valid empty data are distinct. Projection-specific reduced
 views require explicit omission semantics rather than a universal shallow
@@ -100,11 +116,13 @@ revalidates it against current authoritative state.
 
 ## D-008: Initial action-decision semantics remain minimal
 
-The first shared decision representation is action meaning tags, base priority,
-and explicit signed score contributions.
+The first shared ready decision is exactly `Select(candidate_id)` or
+`NoApplicableAction`. The deterministic rule baseline selects the first
+canonical applicable candidate.
 
-A richer action or utility DSL may later live behind the same candidate and
-policy contracts. The core does not predict its full instruction set now.
+A richer action or utility DSL, semantic tags, or fixed-point scorer may later
+live behind the same candidate and policy contracts. No shared score
+representation is introduced before it has a real producer and consumer.
 
 ## D-009: Virtual time uses deterministic discrete events
 
@@ -126,15 +144,23 @@ All work at one `SimMoment` reads one base snapshot. Validation and effect
 evaluation produce internal prepared transactions, which conflict resolution
 combines into one `SameMomentCommitBatch`.
 
-Every revision publishes one outer `AuthorityRecord`: an `IngressBatchRecord`,
-`MomentBatchRecord`, or `ManagementBatchRecord`. A moment record atomically
-records every accepted/rejected attempt, changes accepted state and runtime
-control, consumes and schedules work, and advances revision. It contains a
-self-contained `ReactionEnvelope` only when observable or reliably deliverable
-consequences exist; only a nonempty envelope schedules post-commit dispatch.
+Every revision publishes one outer `AuthorityRecord`:
+`Admission(Commands(IngressBatchRecord))`,
+`Admission(ActionEvaluation(ActionEvaluationAdmissionRecord))`,
+`Moment(MomentBatchRecord)`, or `Management(ManagementBatchRecord)`. A moment
+record atomically records every accepted/rejected attempt, changes accepted
+state and runtime control, consumes and schedules work, and advances revision.
+It contains a self-contained `ReactionEnvelope` only when observable or
+reliably deliverable consequences exist; only a nonempty envelope schedules
+post-commit dispatch.
 
 Pure projection and evaluation may run in parallel. Conflict resolution and
 authoritative publication remain canonically ordered.
+
+`PostCommitRouter` is pure engine-owned coordination over a durable
+runtime-owned dispatch. Runtime neither depends on context nor infers
+observation or cognition dependencies; it commits only the router's typed
+proposals through the ordinary authority path.
 
 Input, host-management, and command requests use typed, non-reusable
 idempotency namespaces with monotonically issued IDs. Full outcomes may compact
@@ -261,12 +287,18 @@ can change a logical result is instead named in execution semantics.
 ## D-017: Executable families share infrastructure, not authority
 
 Executable families, when introduced, remain specific to their authority and
-stage, with their own legal operations and verifiers. The initial IR surface is
-limited to action, effect, event, and process definitions and the condition
-roots their real consumers require. Projection, observation, appraisal, intent,
-metrics, and study representations may remain checked declarative records;
-they become IR only when a real source/lowering/transformation or interpreter
-boundary justifies it.
+stage, with their own legal operations and verifiers. The foundation
+`ArtifactBlobV1` executable-definition surface contains checked action
+definitions, event definitions, and ordered effect calls embedded in each
+action. It does not pretend to have a standalone effect-program family,
+process definitions, or condition roots before they have executable consumers.
+M6 exercises that exact T1 surface through authoring and preview. M8 introduces
+the first checked process and condition families required by its composition
+scenarios through a successor artifact protocol.
+Projection, observation, appraisal, intent, metrics, and study
+representations may remain checked declarative records; they become IR only
+when a real source/lowering/transformation or interpreter boundary justifies
+it.
 
 Families may share compiler libraries for names, types, bindings, provenance,
 and diagnostics. Metrics and study designs remain canonical `world-lab`
@@ -307,8 +339,12 @@ another actor-visible configured cause requests it; a hidden-only witness
 change and a transport retry never create a new logical invocation.
 
 Pending invocation, captured result, admission, cancellation, and fallback are
-checkpointed runtime-control state. External ingress atomically records the
-input and its explicit simulation-time delivery.
+checkpointed runtime-control state. Ordinary commands use the `InputId`
+ledger; evaluator results use a distinct `ActionEvaluationCaptureId` ledger
+whose exact retry is checked before current invocation/frontier validation.
+Both are concrete `Admit` protocols, not one generic ingress envelope.
+External ingress atomically records the input and its explicit simulation-time
+delivery.
 
 Inline deterministic and deferred captured evaluation are distinct execution
 classes. Deferred results run only at a later microstep and cannot retroactively
@@ -317,6 +353,11 @@ session frontier; `HostScheduled` is the explicit nonblocking alternative. An
 admission-sealing management transition cannot cross unresolved scheduled work
 or a `FrontierBlocking` invocation unless that same atomic record resolves or
 disposes of the blocker.
+
+M4 implements this authoritative protocol and captured-result ingress without
+requiring external transport. M5 proves restoration and replay from the
+captured state without reevaluation. M6 supplies authenticated product
+adapters and dispatch.
 
 ## D-020: Causal history, explanation, and telemetry remain separate
 
@@ -411,12 +452,20 @@ The host/run plane follows the same rule: `RunAttemptControl` reservation and
 `RunFinalization` are separately durable even though they do not enter world
 state or create another world-mutation path.
 
-Shared durable lifecycle protocol schemas belong below context and decision,
-in `world-model`; runtime stores and structurally transitions them, while
-engine coordination and evaluators retain their narrower responsibilities.
-Implementation-defined persistent state is allowed only in a bounded,
-versioned sealed slot owned by one exact lifecycle port, never in a generic
-blackboard.
+Shared accepted semantic lifecycle schemas belong below context and decision,
+in `world-model`. These include the immutable intent, activity,
+action-opportunity, and process records that snapshots, typed semantic deltas,
+or lower-package queries must share. Runtime stores those records and alone
+accepts their transitions.
+
+Nonsemantic coordination and control schemas belong to `world-runtime`.
+Typed continuation envelopes, pending evaluator invocations, captured-result
+and capture-ledger records, blockers, cancellation generations, retry/fallback
+dispositions, and scheduler integration do not become model aggregates merely
+because they survive checkpoints. Engine coordination and evaluators retain
+their narrower responsibilities. Implementation-defined persistent evaluator
+state is allowed only in a bounded, versioned sealed slot owned by one exact
+lifecycle port, never in a generic blackboard.
 
 ## D-026: One formal kernel explains the architecture without becoming a framework
 
@@ -586,8 +635,8 @@ Primary references:
 The current authoring toolchain and pack authors are host-trusted. Serialized
 artifacts may still be corrupt, stale, mismatched, or produced by an
 incompatible schema, so they remain unchecked until their owner validates
-them. W2 does not model an attacker attempting parser resource exhaustion or
-arbitrary-code execution.
+them. The foundation artifact protocol does not model an attacker attempting
+parser resource exhaustion or arbitrary-code execution.
 
 `ArtifactBlobV1` uses a restricted deterministic CBOR emitter implemented by
 private, explicit `minicbor` calls in `world-defs`. The artifact codec is a
@@ -624,3 +673,142 @@ isolation, fuzz gates, or signature policy when that boundary actually exists.
 The byte-complete schema, normalization rules, identities, and limits are
 defined in
 [ArtifactBlobV1 Protocol](artifact-blob-v1.md).
+
+## D-032: Grounded action is an actor-relative compiler boundary
+
+M3 treats actor control as a staged, deterministic compilation:
+
+```text
+trusted snapshot and open opportunity
+  -> actor-safe action frame
+  -> bounded fully grounded candidates
+  -> candidate-ID-only selection
+  -> private binding resolution and lowering
+  -> authoritative runtime revalidation
+  -> neutral attempt-resolution wake
+```
+
+A grounded candidate is complete and type-correct for the roles declared by
+its action and is intelligible from the actor's permitted view. It is not a
+claim that hidden authoritative requirements hold. Candidate discovery cannot
+consult private legality merely to remove an attempt. Policy sees neither the
+global revision, raw simulation moment, dependency witness, authority cursor,
+private resolution table, exact runtime bindings, nor rich attempt result.
+
+The engine-private candidate table and input fingerprint prove selected-ID
+membership and candidate-budget compliance. Runtime does not reproduce the
+actor-safe projector. It independently checks the authoritative opportunity
+actor, family and interaction scope, then reevaluates current command legality.
+
+The grounded candidate is the first public affordance waist. Capability,
+repertoire, observed-feature, and perceived-affordance derivations remain
+typed internals until a real policy or adapter needs them independently. This
+avoids several public frameworks describing the same actor/action/target
+relation. Human, rule, script, learned, and external controllers consume the
+same payload schema and candidate boundary and may select only an ID supplied
+for that exact opportunity. The payload's policy-semantics field intentionally
+changes when controller semantics change, so decisions cannot be replayed
+across incompatible controllers.
+
+For one controller semantics identity, actor-indistinguishable paired states
+must produce identical canonical policy payloads, candidate membership and
+order, IDs, fingerprints, actor-safe diagnostics when present, and logical
+invocation timing. Private execution material and authoritative outcomes may
+differ. Accepted and rejected attempts produce the same immediate
+actor-visible neutral wake; a later difference requires a declared observation
+and accepted evidence transition.
+
+## D-033: The first grounder is concrete and adds no dependency edge
+
+M3 introduces no projection DSL, universal provider registry, generic pass
+framework, or dependency from `world-standard-runtime` to `world-context`.
+The first real family is a concrete containment-transfer action projector in
+`world-context`. It depends only on checked action shapes and immutable
+containment query views, validates the typed transfer-role contract, and never
+matches a standard-pack string or imports `world-standard`.
+
+`world-engine` performs the composition it already owns: the sealed runtime
+activation identifies the typed containment-transfer family, the linked
+definition supplies its checked action, `world-context` builds the public
+payload and private resolution table, `world-decision` selects a candidate
+ID, and the engine privately lowers it into the existing runtime command
+protocol.
+
+`LifecycleProfilesV2` is the versioned `Γ` commitment to the exact installed
+evidence, appraisal, optional social, intent, activity, and action
+implementations, including each private-state contract and the action
+execution class. Per-opportunity candidate budget is durable state in
+`ActionOpportunity.scope`. Controller implementations are installed as
+distribution capabilities, but a trajectory-affecting replacement is selected
+before activation, enters the exact `ExecutionSemanticsManifest`, and is
+captured in `Γ` by `ResolvedExecution`. It is neither ambient host behavior nor
+a per-advance choice. Its semantics identity enters the actor-safe input
+fingerprint, while the resulting disposition or lowered command enters
+authority history.
+Durable capture, replay, and authentication of an external controller
+invocation begin with the deferred-evaluation protocol, not the synchronous M3
+profile.
+
+The second genuinely different grounding family is the evidence threshold for
+choosing between another concrete projector and a minimal checked projection
+IR. M3 does not predict that abstraction in advance.
+
+## D-034: Reusable content, scenario provenance, and initial state have distinct owners
+
+T0 names an authority tier, not one universal artifact. A reusable actor,
+object, location, item, recipe, encounter, or other content declaration is
+pack-owned checked data. It may enter the exact pack closure and be referenced
+by a `RuntimeDefinitionSet`, but it is not an authoritative entity instance or
+starting world.
+
+The foundation `ArtifactBlobV1` has no reusable T0 content-data family, and M6
+does not add one merely to demonstrate authoring. M8 introduces the first
+minimal reusable T0 pack-content family with the gameplay and
+root-materialization consumer that determines its schema. This is an explicit
+successor artifact protocol, not a reinterpretation of version 1.
+
+A lab-owned `ScenarioArtifact` is an immutable planning/provenance artifact and
+a checked recipe for materializing a root. A product may own a different
+initial-world source schema. Neither schema is a runtime contract, mutation
+surface, definition-set replacement, or member of trajectory identity. A
+`RunCase` may reference the exact scenario digest as study provenance.
+
+`InitialStateRoot` is the runtime-owned canonical materialization boundary. It
+contains the complete starting accepted state, mode, time, frontier,
+runtime-control state, scheduler, and lineage references and is checked
+against one exact `RuntimeDefinitionSet` and execution-semantics closure.
+Product or lab composition invokes the checked root builder offline; source
+declarations do not remain as a second authoritative interpretation path.
+After activation, changing a pack or scenario cannot mutate the epoch. New
+state enters only through ordinary admission, moment, management, branch, or
+migration protocols.
+
+## D-035: Gameplay-facing extension APIs require composition evidence
+
+The authority waist, crate dependency direction, and typed gate boundaries are
+stable. Gameplay-facing primitive, definition-family, state-owner, derivation,
+and composition APIs are not declared stable merely because one vertical slice
+uses them.
+
+Before those APIs are stabilized, cross-primitive validation must prove at
+least:
+
+- after the minimal required T0 family is installed, a separate mechanic
+  composed only from the then-existing T0/T1 vocabulary changes definitions
+  and tests without changing artifact-family schemas, the authority kernel, or
+  unrelated primitive owners;
+- independently owned primitives participate in one same-moment conflict and
+  combined-invariant proof through declared footprints and gate receipts;
+- physical consequences can flow through observation, actor-relative
+  epistemic state, social interpretation or institution, and agency without a
+  direct system-to-system mutation chain; and
+- a genuinely new T3 primitive adds only concrete owner-local implementation
+  and composition-root wiring, without reversing dependency direction or
+  changing unrelated public APIs.
+
+Until that evidence exists, the implementation keeps gameplay-facing surfaces
+concrete, narrow, and evolvable. It does not freeze a universal primitive
+trait, mutable state-owner registry, generic derivation graph, generic
+cross-system transaction API, or one IR that erases authority families. The
+composition validation milestone is a falsification gate for the proposed
+boundaries, not permission to redesign the already-proven authority kernel.

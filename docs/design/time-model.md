@@ -2,7 +2,12 @@
 
 ## Status
 
-Current design draft
+Frozen pre-target time and scheduler design.
+
+The integer virtual-time motivation remains valid. The `phase`, user priority,
+sequential same-time ordering, and scheduler record shapes below are
+superseded by the normative `SimMoment` and whole-moment lane model in
+[Runtime, Persistence, And Scale](../architecture/target-architecture/runtime-persistence-and-scale.md).
 
 ## Source Research
 

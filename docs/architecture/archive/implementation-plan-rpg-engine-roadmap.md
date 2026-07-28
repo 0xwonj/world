@@ -4,7 +4,7 @@ Archive note:
 
 This document is historical context for the earlier simulation-first RPG engine
 roadmap. The active roadmap is
-[Implementation Plan](../implementation-plan.md).
+[Target Architecture Execution Roadmap](../target-architecture/implementation-roadmap.md).
 
 ## Status
 
@@ -39,28 +39,28 @@ implementation details open where early code will teach the best shape.
 
 Primary architecture inputs:
 
-- [Architecture Decisions](ADR.md)
-- [Engine Architecture](engine.md)
-- [Runtime Pipeline Architecture](runtime-pipeline.md)
-- [Crate Boundary Architecture](crates.md)
-- [Project Conventions](project-conventions.md)
+- [Architecture Decisions](../ADR.md)
+- [Engine Architecture](../engine.md)
+- [Runtime Pipeline Architecture](../runtime-pipeline.md)
+- [Crate Boundary Architecture](../crates.md)
+- [Project Conventions](../project-conventions.md)
 
 Primary design inputs:
 
-- [Simulation Core](../design/simulation-core.md)
-- [World Model](../design/world-model.md)
-- [Causal Runtime](../design/causal-runtime.md)
-- [Typed Effect Primitives](../design/typed-effect-primitives.md)
-- [Standard World Library And Primitive Semantics](../design/standard-world-library.md)
-- [Time Model](../design/time-model.md)
-- [Pack Authoring And Semantic Declarations](../design/pack-authoring-and-semantic-declarations.md)
-- [Simulation Transition Compiler](../design/simulation-transition-compiler.md)
-- [Intent Templates And Planning](../design/intent-templates-and-planning.md)
+- [Simulation Core](../../design/simulation-core.md)
+- [World Model](../../design/world-model.md)
+- [Causal Runtime](../../design/causal-runtime.md)
+- [Typed Effect Primitives](../../design/typed-effect-primitives.md)
+- [Standard World Library And Primitive Semantics](../../design/standard-world-library.md)
+- [Time Model](../../design/time-model.md)
+- [Pack Authoring And Semantic Declarations](../../design/pack-authoring-and-semantic-declarations.md)
+- [Simulation Transition Compiler](../../design/simulation-transition-compiler.md)
+- [Intent Templates And Planning](../../design/intent-templates-and-planning.md)
 
 Primary research inputs:
 
-- [Implementation Architecture And Library Survey](../research/implementation-architecture-and-library-survey.md)
-- [Runtime Pipeline Implementation Research](../research/runtime-pipeline-implementation-research.md)
+- [Implementation Architecture And Library Survey](../../research/implementation-architecture-and-library-survey.md)
+- [Runtime Pipeline Implementation Research](../../research/runtime-pipeline-implementation-research.md)
 
 ## Planning Rules
 
@@ -259,8 +259,8 @@ engine behavior.
 Primary focus:
 
 - Cargo workspace
-- crate skeletons from [Crate Boundary Architecture](crates.md)
-- workspace dependency policy from [Project Conventions](project-conventions.md)
+- crate skeletons from [Crate Boundary Architecture](../crates.md)
+- workspace dependency policy from [Project Conventions](../project-conventions.md)
 - lint and formatting baseline
 - minimal documentation for how to run checks
 
@@ -857,7 +857,7 @@ plan based on real code rather than speculative crate boundaries.
 
 This high-level plan has served its purpose when:
 
-- the workspace dependency direction matches [Crate Boundary Architecture](crates.md)
+- the workspace dependency direction matches [Crate Boundary Architecture](../crates.md)
 - hard mutation authority is visibly centralized in runtime code
 - current state, event history, runtime control state, and accepted non-hard
   state are represented as distinct authority classes

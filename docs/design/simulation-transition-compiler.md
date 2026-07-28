@@ -2,14 +2,17 @@
 
 ## Status
 
-Current architecture model.
+Frozen pre-target architecture model.
 
-This document defines the compiler-shaped architecture that connects pack
-declarations, actor-relative context, semantic interpretation, intent lowering,
-typed effects, and transactional world mutation.
+The staged-transformation insight remains useful, but this document's shared
+pipeline and `CausalTransaction` contracts are superseded by the
+[Formal Model](../architecture/target-architecture/formal-model.md),
+[System Architecture](../architecture/target-architecture/system-architecture.md),
+and family-specific compiler contracts in
+[Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md).
 
 It is not a claim that the game is a traditional source-code compiler. It is a
-design model for organizing staged simulation transitions.
+historical design model for organizing staged simulation transitions.
 
 ## Source Context
 
@@ -1298,7 +1301,7 @@ authority.
 - Do not turn `RepresentationClass` or `PassClass` into a universal runtime
   base type or arbitrary plugin system.
 
-## Stable Decisions
+## Historical decisions
 
 - The engine uses compiler architecture internally: multi-level
   representations, narrow IRs, checked passes, effect-typed lowering,

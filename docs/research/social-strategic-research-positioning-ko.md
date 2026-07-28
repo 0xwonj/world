@@ -1,5 +1,12 @@
 # 사회적-전략적 시뮬레이션 엔진으로서의 world
 
+## 상태
+
+비규범적 연구 포지셔닝 문서입니다. 실제 제품 비전은
+[Reference Game Vision](../design/reference-game-vision.md), 권한·상태·실행
+계약은 [Target Architecture](../architecture/target-architecture/README.md)가
+소유합니다.
+
 ## 관점
 
 `world`는 부분 지식, 사회적 의미, 약속, 규범, 평판, 제재, 의도, 행동,

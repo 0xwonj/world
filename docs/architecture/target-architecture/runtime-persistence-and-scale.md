@@ -35,8 +35,8 @@ It is not:
 - a callback registry with shared mutable world access.
 
 The only authoritative transition surfaces are `Admit`, `Fire`, and `Manage`.
-They publish ingress, moment, and management records respectively through the
-same private atomic publication capability.
+They publish admission, moment, and management records respectively through
+the same private atomic publication capability.
 
 ## Virtual time
 
@@ -243,14 +243,14 @@ InvokeAction
 StartProcess
 ControlProcess
 SubmitEpistemicProposal
-SubmitSocialProposal
+SubmitSocialTransitionProposal
 SubmitAgencyProposal
 SubmitLifecycleWakeProposal
 TransitionResolution
 ```
 
 Internal process wakes use serialized scheduler payloads, not host requests.
-External inputs use the atomic ingress protocol defined below.
+External inputs use the typed atomic admission protocols defined below.
 `StartProcess` and `ControlProcess` are trusted lowered/runtime-internal
 families; an actor or activity controller reaches them through a grounded
 action in the initial architecture.
@@ -265,7 +265,7 @@ actor, where relevant
 action opportunity or sponsoring activity, where relevant
 requested SimMoment
 input world revision
-ReadWitness
+request-specific LifecycleReadWitnessK, when retained
 runtime-definition-set digest
 decision or external-input provenance
 typed request payload
@@ -274,6 +274,12 @@ typed request payload
 These are engine-private authority/freshness fields, not policy input. Each
 request family has a concrete type; this list does not mandate one universal
 request-envelope struct or meaningless optional fields.
+
+A `SocialTransitionProposal` carries one closed transition kind. An
+actor-relative interpretation proposal cannot be reinterpreted as an
+intersubjective claim or institutionally authoritative fact. Claim and
+institution transitions carry their own provenance, scope, and rule evidence;
+runtime validates the social gate receipt but does not infer social meaning.
 
 Every request family defines a canonical `RequestFingerprintK` over its whole
 authority/effect-bearing envelope, excluding only the request ID,
@@ -357,33 +363,53 @@ refers to its enclosing record uses the canonical `CurrentRecord` token in the
 preimage; the actual outer ID is materialized after hashing and rechecked on
 load.
 
-`ReadWitness` is the dependency evidence used for narrow freshness checks:
+Two private read-evidence concepts have different owners and lifetimes.
+`LifecycleReadWitnessK` is specification notation for the domain-shaped
+witness produced by lifecycle projector K and retained only when an evaluation
+can survive the prepared step that built it. Its first concrete form is
+context-owned `ActionReadWitness` in M4. Runtime stores its canonical artifact
+opaquely with the invocation's authority binding, schema, semantic digests,
+and expected versions; runtime does not interpret its context-owned fields.
+M3's synchronous action projection, decision, and lowering remain inside one
+reserved `PreparedFire` and therefore retain no lifecycle witness.
 
 ```text
-ReadWitness
-  provenance revision
-  runtime-definition-set and execution-semantics digests
-  policy-input section
-    ActorInputFingerprint and candidate-set fingerprints
-    entity/component and query-index stamps read while building visible input
-  execution-validation section
-    authoritative entity/resource versions used for lowering and legality
+ActionReadWitness                         owned and interpreted by world-context
+  projection section
+    closed accepted-state observations and absences used to build visible input
+  execution section
+    closed authoritative facts used for lowering and legality
     explicit private applicability dependencies
+
+ActionEvaluationInvocationRecord         owned by world-runtime
+  source AuthorityCursor and expected accepted-state versions
+  exact policy-payload artifact, ActorInputFingerprint, and candidate-set
+    fingerprint
+  action-read-witness schema, artifact bytes, and digest
+  runtime-definition-set and execution-semantics digests
 ```
 
-An unrelated session revision need not invalidate a result when the witness
-proves its inputs unchanged. If the policy-input section no longer validates,
-trusted projection rebuilds the complete policy payload. A byte-identical
-`ActorInputFingerprint` permits private rebinding or result reuse without a
-new logical evaluator invocation; only a changed payload, an explicit
-child-branch/epoch evaluator-binding change, or another actor-visible
+An unrelated session revision need not invalidate a result when
+`ActionReadWitness` proves its inputs unchanged. If the projection section no
+longer validates, trusted projection rebuilds the complete policy payload. A
+byte-identical `ActorInputFingerprint` permits private rebinding or result
+reuse without a new logical evaluator invocation; only a changed payload, an
+explicit child-branch/epoch evaluator-binding change, or another actor-visible
 configured cause permits reinvocation.
 
-The execution-validation section is never policy input. A change there causes
+The execution section is never policy input. A change there causes
 the coordinator and runtime to re-resolve the selected safe ID and revalidate
 authoritative legality; it cannot alter policy invocation/dispatch behavior.
 Runtime legality is reevaluated authoritatively even when both witness sections
 remain valid.
+
+`PreparationReadEvidence` is instead a runtime-owned, same-step value produced
+while a trusted primitive prepares an authoritative transaction. It records
+the exact authoritative reads and versions that justify the staged delta,
+footprint, and gate receipts. It participates in whole-moment conflict and
+invariant verification, is never sent to a lifecycle evaluator, and cannot
+serve as freshness evidence for a result retained across steps. Its canonical
+digest may be recorded in the resulting attempt history.
 
 ## Prepare and atomic commit
 
@@ -413,7 +439,7 @@ Effect evaluation constructs a side-effect-free internal value:
 ```text
 PreparedTransaction
   base revision
-  ReadWitness
+  PreparationReadEvidence
   transaction kind
   participating gate receipts
   read footprint
@@ -464,7 +490,7 @@ AttemptRecord
     | IdCollisionGroup(sorted distinct request fingerprints and canonical digest)
   source
   actor and action opportunity, for an exact command
-  base revision and ReadWitness digest
+  base revision and PreparationReadEvidence digest
   contender/conflict group, where relevant
   resolver and policy version
   canonical ordering evidence
@@ -493,15 +519,16 @@ location in that record:
 AuthorityRecord
   common sequence, identity, previous hash, and cumulative hash
   body:
-    IngressBatchRecord
-    MomentBatchRecord {
+    Admission
+      Commands(IngressBatchRecord)
+      | ActionEvaluation(ActionEvaluationAdmissionRecord)
+    | Moment(MomentBatchRecord)
       SimMoment, resulting AdmissionFrontier, and consumed trigger IDs
       canonically indexed AttemptRecord[]
       canonically indexed CommitRecord[]
       exact accepted-state/mode/runtime-control/scheduler delta
       optional self-contained ReactionEnvelope
-    }
-    ManagementBatchRecord
+    | Management(ManagementBatchRecord)
 ```
 
 Inner IDs derive from the outer record identity, kind, and canonical local
@@ -624,19 +651,25 @@ The durable run history contains:
 
 ```text
 AuthorityRecord
-  IngressBatchRecord
-    CapturedInputRecord[]
-    ingress-control delta
-    delivery scheduler delta
+  Admission
+    Commands(IngressBatchRecord)
+      CapturedInputRecord[]
+      ingress-control delta
+      delivery scheduler delta
 
-  MomentBatchRecord
+    | ActionEvaluation(ActionEvaluationAdmissionRecord)
+      capture identity, fingerprint, and retained outcome
+      invocation, capture-ledger, and blocker delta
+      action-evaluation scheduler insertion
+
+  | Moment(MomentBatchRecord)
     SimMoment, resulting AdmissionFrontier, and consumed triggers
     AttemptRecord[]
     accepted CommitRecord[]
     exact accepted-state/mode/control/scheduler delta
     optional self-contained ReactionEnvelope
 
-  ManagementBatchRecord
+  | Management(ManagementBatchRecord)
     session pause/resume/quarantine/failure, invocation
       cancellation/timeout/failure, or admission sealing
     captured idempotent host request or deterministic kernel safety cause
@@ -691,41 +724,54 @@ control transition is durable history.
 
 ### Atomic external ingress
 
-Every host or external evaluator result enters through:
+External ingress is a closed sum of explicit protocols, not a generic payload
+envelope. Both are concrete members of the `Admit` authority family:
 
 ```text
-CapturedInputRecord
+CommandAdmission
   InputId
   origin and idempotency key
-  payload and payload hash
-  canonical input request fingerprint
-  interface and implementation compatibility
+  checked command and command fingerprint
   explicit effective SimMoment
-  causal invocation, where relevant
+
+ActionEvaluationResultCapture
+  ActionEvaluationCaptureId
+  ActionEvaluationInvocationId
+  ActionEvaluationRequestId
+  typed result and result schema
+  InvocationFrontier | HostScheduled(explicit SimMoment)
 ```
 
-The checkpointed `InputLedger` contains the namespace's compact non-reuse
-frontier plus retained `(origin, InputId)` request fingerprints and original
-ingress outcomes.
+The checkpointed `InputLedger` owns only command-input identity. It contains
+the namespace's compact non-reuse frontier plus retained
+`(origin, InputId)` request fingerprints and original admission outcomes. At a
+serialized admission barrier, command ingress atomically publishes
+`Admission(Commands(IngressBatchRecord))`, containing the captured input and
+its delivery trigger.
+Exact retained `(origin, InputId, request fingerprint)` duplicates resolve to
+the original outcome; reusing a retained ID with another fingerprint fails
+closed. An ID whose full outcome has been compacted receives
+`DuplicateExpired` with no publication.
 
-At a serialized admission barrier, the kernel atomically publishes an
-`IngressBatchRecord` containing the input and its delivery trigger. Exact
-retained `(origin, InputId, request fingerprint)` duplicates resolve to the
-original outcome; reusing a retained ID with another request fingerprint fails
-closed. Delivery remains safe after crash and retry. Network completion time
-never becomes simulation
-time implicitly. This deduplication short-circuit precedes the
-current-admission-frontier check; a retry of a once-valid input does not become
-a new backdated rejection merely because the world advanced. An ID whose full
-outcome has been compacted receives `DuplicateExpired` with no publication.
+Action evaluation uses a distinct checkpointed capture ledger keyed by
+`ActionEvaluationCaptureId`. Its fingerprint closes the invocation, request,
+result identity and schema, artifact digest, admission mode, and effective
+moment. An exact retained retry returns the original capture outcome before
+current-state or frontier checks; reusing the ID for different material fails
+closed. Capture atomically publishes
+`Admission(ActionEvaluation(ActionEvaluationAdmissionRecord))`, retaining the
+result or its bounded-artifact failure, changing the invocation control state,
+installing the later action-evaluation work item, and releasing only that
+invocation's frontier blocker.
 
-Ingress uses the same atomic authority-publication machinery and advances the
-authoritative control revision, but the payload is not semantically visible to
-the simulation until its delivery trigger is consumed at the recorded
-effective moment. Capture may update pending-invocation control state and
-release a `FrontierBlocking` barrier; policies still cannot consume the result
-before delivery. An effective moment behind the monotonic
-`AdmissionFrontier` is rejected rather than backdated.
+Both protocols use the same serialized authority-publication mechanism and
+advance the control revision, while preserving separate identities and
+validation rules. Network completion time never becomes simulation time
+implicitly. A result is not semantically consumed until its
+`ActionEvaluation` scheduler work is fired at the recorded effective moment;
+capture cannot retroactively join the invocation-creating moment. A new
+effective moment behind the monotonic `AdmissionFrontier` is rejected rather
+than backdated.
 
 External evaluator invocation has accepted runtime-control state:
 
@@ -734,10 +780,12 @@ DispatchPending
   admission policy
   blocked_at_frontier, exactly when FrontierBlocking
   -> ResultCaptured
-     -> Fresh | Stale
-     -> Applied | Reinvoked | Fallback | Discarded
-  -> TimedOut | Cancelled | Failed
-     -> FallbackPending | Discarded
+     -> Terminal(Applied { freshness } | Reinvoked { successor })
+     -> FallbackPending(cause)
+  -> FallbackPending(cause)
+
+FallbackPending(cause)
+  -> Terminal(Failed { cause })
 ```
 
 The exact request, durable dispatch obligation, response, and every
@@ -1114,12 +1162,15 @@ one physical execution attempt. The durable record is keyed by
 ```text
 Active(reconciled AuthorityCursor, attempt-control deduplication state)
   -> StepReserved(
-       expected cursor,
-       transition kind,
-       canonical ReservedOperationDescriptor,
-       ReservedOperationFingerprint,
-       AttemptStepId,
-       optional durable non-cancellation AttemptDisposition
+       durable StepReservation {
+         expected cursor,
+         transition kind,
+         canonical ReservedOperationDescriptor,
+         ReservedOperationFingerprint,
+         AttemptStepId,
+         optional durable non-cancellation AttemptDisposition
+       },
+       owner-local ReservationGrant
      )
   -> Active(new cursor)
    | Finalized {
@@ -1159,6 +1210,17 @@ lifecycle state except through an explicitly declared semantic projection.
 Ordered contract clauses resolve simultaneous semantic conditions; explicit
 durable cancellation, host-budget, external-failure, and engine-failure
 dispositions map to distinct final reasons.
+
+`AttemptStepId` names the logical operation, while `ReservationGrant` fences
+one concrete grant of mutation authority. Each transition into
+`StepReserved` mints a new owner-local grant. An unchanged, receipt-free
+reservation may be released and the same logical step later re-created, but
+the new grant prevents a surviving in-process capability from the old
+reservation from completing or failing it. The grant does not enter semantic
+identities, receipts, records, cursors, history, trajectories, or canonical
+control traces. The durable store retains the reservation, while the grant
+exists only for the lifetime in which a matching process capability can
+survive.
 
 A non-cancellation disposition arising during a reserved operation is attached
 durably to that reservation. Reconciliation applies it only at the
@@ -1585,7 +1647,7 @@ The runtime test strategy must prove:
 15. lifecycle-control and pending external-invocation state survive
     checkpoints;
 16. causal-wave exhaustion leaves an explicit committed session state;
-17. every authoritative publication is one hash-linked ingress, moment, or
+17. every authoritative publication is one hash-linked admission, moment, or
     management record with one crash-safe linearization point;
 18. duplicate input, management-request, and command IDs cannot produce a
     second effect, including after retained outcomes compact to non-reuse

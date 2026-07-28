@@ -2,12 +2,14 @@
 
 ## Status
 
-Current design draft.
+Partially superseded nonnormative epistemic design input.
 
-This document defines the first stable design for actor-relative information.
-It is not a final implementation spec. The main storage model, boundaries, and
-terminology are settled enough to use; scoring formulas, decay rules, and
-presentation details remain deferred.
+This document supplies vocabulary and algorithms for actor-relative
+information. Accepted state ownership, evidence flow, policy disclosure, and
+lifecycle contracts live in
+[Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md).
+Scoring formulas, decay rules, and presentation details remain local and
+deferred.
 
 ## Source Research
 
@@ -1311,7 +1313,7 @@ EpistemicRecord:
 Capability derivation may let the actor use a passphrase action schema at the
 matching gate.
 
-## Stable Decisions
+## Domain design conclusions
 
 - [World Model](world-model.md) hosts `EpistemicStore`; this document owns
   `EpistemicRecord` semantics and lifecycle.

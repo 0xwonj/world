@@ -2,10 +2,21 @@
 
 ## Status and scope
 
-This document is the byte-complete W2 storage and identity contract for
-compiled pack artifacts. It refines the artifact boundary owned by
-[Extensibility and Research](extensibility-and-research.md) and the validation
-policy accepted in [D-031](decisions.md).
+This document is the byte-complete foundation storage and identity contract
+implemented by M1 for compiled pack artifacts. It refines the artifact
+boundary owned by
+[Extensibility and Research](extensibility-and-research.md) and the
+validation policy accepted in [D-031](decisions.md).
+
+Version 1 intentionally encodes only checked action and physical-event
+definitions with ordered predicate/effect calls. It contains no reusable T0
+content-data family and is not the complete target vocabulary. M6 exercises
+this exact existing T1 vocabulary through the ordinary authoring and preview
+path. M8 introduces the first minimal reusable T0 content family and the first
+gameplay-driven executable-family expansion, each with a real consumer,
+schema, verifier, limits, migration policy, and validation scenario. Those
+families enter a successor artifact protocol; `ArtifactBlobV1` is never
+silently extended in place.
 
 The current environment is a trusted local authoring toolchain. Artifact
 validation detects ordinary corruption, incompatible schemas, invalid domain
@@ -96,7 +107,7 @@ CBOR uses the shortest unsigned representation emitted by `minicbor`. The
 widths above define the accepted domain range. Canonical identity preimages
 use their fixed-width `world-canonical-v1` representations.
 
-W2 pack versions have exactly three numeric components. Prerelease labels,
+Foundation pack versions have exactly three numeric components. Prerelease labels,
 build metadata, ranges, aliases, and parallel versions of one `PackKey` are
 outside this protocol.
 
@@ -313,7 +324,7 @@ SemanticOperationDescriptor
 ```
 
 Descriptors contain no callback, runtime implementation, compiler hook,
-generic value tree, or embedded copy inside an artifact. W2 bounds operation
+generic value tree, or embedded copy inside an artifact. Version 1 bounds operation
 count and effect-call count. Generalized execution cost metadata is deferred
 until runtime work budgeting has a concrete consumer.
 
@@ -379,7 +390,7 @@ definitions sorted by local name:
     Event  -> sorted fields (name, value kind)
 ```
 
-All W2 definitions are exported. Requirements, effects, and event mappings are
+All version-1 definitions are exported. Requirements, effects, and event mappings are
 not part of the export surface.
 
 ### Runtime semantic fingerprint
@@ -478,7 +489,7 @@ ArtifactDigest = BLAKE3(exact ArtifactBlobV1 bytes)
 ```
 
 `SourceSnapshotId` is a distinct 32-byte content identity supplied by the
-source owner. W2 does not invent a universal source serialization solely to
+source owner. The foundation protocol does not invent a universal source serialization solely to
 derive it.
 
 ## Exact selection, lock, and set
@@ -543,7 +554,7 @@ resource-accounting system:
 | Fields per event | 32 |
 | Arguments per operation call | 32 |
 
-There is no recursive expression representation in W2, so there is no generic
+There is no recursive expression representation in version 1, so there is no generic
 depth, node, fuel, or total-allocation budget. A decoded array length is
 checked against its corresponding semantic limit before collection
 allocation.
@@ -629,4 +640,4 @@ arity, trailing bytes, semantic collection boundaries, invalid identifiers,
 references, stages, duplicates, graph closure, and linking.
 
 Mutation fuzzing, hostile allocation accounting, signature policy, and
-hardened streaming ingestion are not W2 completion gates.
+hardened streaming ingestion are not foundation-protocol completion gates.

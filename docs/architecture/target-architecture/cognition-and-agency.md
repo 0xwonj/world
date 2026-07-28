@@ -42,6 +42,35 @@ replaced by world truth.
 Evidence records and beliefs are persistent epistemic state. A delivery and the
 decision working frame assembled from accepted state are transient.
 
+### Social truth classes
+
+Social semantics do not reuse `Belief` as a catch-all:
+
+```text
+Belief
+  one actor's evidence-supported proposition
+  owned by the epistemic gate
+
+ActorSocialInterpretation
+  one actor's accepted social meaning for an event or relation
+  owned by the social gate and scoped to that actor
+
+IntersubjectiveClaim
+  a recorded assertion, declaration, promise, or commitment among parties
+  owned by the social gate; its proposition is not thereby true
+
+InstitutionalFact
+  a status accepted under installed constitutive rules in one jurisdiction
+  owned by the social gate; it is not physical truth or universal knowledge
+```
+
+Several actors may accept incompatible social interpretations of the same
+event. A claim may support a belief or interpretation, but does not bypass
+evidence assimilation. It becomes an institutional fact only through a
+separate rule-checked social transition. Physical possession remains domain
+state; recognized title, entitlement, permission, and obligation are social or
+institutional state.
+
 ### Appraisal
 
 `Appraisal` is a derived assessment of how an interpreted situation relates to
@@ -204,7 +233,7 @@ immutable inputs tailored to each lifecycle:
 AppraisalContext
 IntentContext
 ActivityContext
-ActionDecisionFrame
+ActionContextPayload
 ```
 
 For each concrete port, the trusted coordinator constructs two conceptual
@@ -214,7 +243,7 @@ layers:
 InvocationEnvelopeK
   exact authority head and world revision
   exact SimMoment and raw trigger provenance
-  ReadWitness and dependency stamps
+  LifecycleReadWitnessK and dependency stamps, when retained or deferred
   expected accepted-state versions
   private candidate-resolution table, where relevant
   private build diagnostics
@@ -239,15 +268,26 @@ freshness, candidate resolution, and commit validation. A deferred invocation
 checkpoints both layers but serializes only the policy payload to the external
 evaluator.
 
-Global revision, raw `SimMoment`, `ReadWitness`, dependency versions,
+An inline evaluation that finishes within one reserved prepared step is
+stack-local and needs no dependency witness. It remains bound to that prepared
+snapshot and to the expected accepted-state versions checked at completion.
+Positive dependency witnesses, retention, rebind, and discard enter only when
+an evaluation result can survive its prepared step. M3's synchronous action
+path is the first stack-local example; M4's deferred action evaluation is the
+first retained example with context-owned `ActionReadWitness`. Runtime's
+`PreparationReadEvidence` is separate same-step transaction evidence and never
+occupies this lifecycle-envelope field.
+
+Global revision, raw `SimMoment`, `ActionReadWitness`, dependency versions,
 authority-record/trigger IDs, and private diagnostics are not policy inputs.
 If an actor may know time or provenance, that information appears through an
 explicit actor-relative projection. An evaluator cannot query the
 authoritative model after receiving the request. If a statically declared
-required projection is missing, it returns
-`Abstain(MissingProjectionKey)`; the reaction/coordinator protocol may later
-build a new request. Dynamic information-query capabilities are deferred until
-a real scenario defines their authorization, budget, and no-leakage contract.
+required projection is missing, the port returns its own closed no-change,
+unavailable, or error outcome as defined by that contract; the
+reaction/coordinator protocol may later build a new request. Dynamic
+information-query capabilities are deferred until a real scenario defines
+their authorization, budget, and no-leakage contract.
 
 Actor-facing semantic IDs—candidate, opportunity, evidence, monitor, and safe
 cause IDs—derive only from actor-visible namespace, content, or sequence. They
@@ -262,8 +302,8 @@ CandidateResolutionEntry
   actor-safe candidate ID
   durable DefinitionKey and canonical execution references
   exact lowering bindings using durable entity/role references
-  source authority head and ReadWitness
-  expected versions and validation metadata
+  source authority head and LifecycleReadWitnessK, when retained across revisions
+  expected versions and validation metadata, when retained
 ```
 
 The policy sees only the actor-safe candidate view. The trusted lowerer uses
@@ -286,7 +326,9 @@ invocation count presented to the actor or evaluator.
 
 ### Projection availability
 
-Every projection reports whether it was actually produced:
+A projector backed only by total checked inputs may return its complete value
+directly. When a genuine partial provider exists, its result reports whether
+the projection was actually produced:
 
 ```text
 Projection<T>
@@ -311,7 +353,8 @@ Rules:
 
 A projection that later needs reduced detail defines a projection-specific
 bounded type with explicit omission semantics. There is no universal `Shallow`
-status.
+status. The complete-versus-unavailable representation is introduced with its
+first real partial provider, not assigned to M4 without one.
 
 ### Partial observability
 
@@ -367,22 +410,21 @@ omit an actor-visible candidate or silently mark an intent achieved.
 
 ## Lifecycle scheduling
 
-Lifecycles are event-driven and independently budgeted.
-
-For compactness, lifecycle signatures below use:
+Lifecycles are event-driven and independently budgeted. Their semantic and
+execution algebras are separate:
 
 ```text
-Disposition<T> :=
-  Ready(T)
-  | Defer(external invocation proposal)
-  | Abstain(reason)
-  | Fail(diagnostic)
+evaluateK(PolicyPayloadK) -> Result<DecisionK, ErrorK>
+
+ExecutionK :=
+  InlineDeterministic
+  | DeferredCaptured
 ```
 
-This is specification shorthand for the common execution states, not a
-requirement for one cross-lifecycle Rust result envelope. Every port retains
-its own concrete request, ready result, persistent-state proposal, and failure
-types.
+Every port retains its own concrete request, decision, persistent-state
+proposal, and failure types. A modeled no-change result belongs inside that
+port's `DecisionK`; deferral belongs to the installed execution binding and
+runtime control, never to the semantic result.
 
 ```mermaid
 flowchart TD
@@ -428,7 +470,7 @@ EvidenceAssimilator
     actor
     EvidenceDelivery
     current actor-relative epistemic view
-  -> Disposition<EpistemicTransitionProposal>
+  -> Result<EpistemicTransitionProposal, EvidenceAssimilationError>
 
 EpistemicTransitionProposal
   delivery disposition
@@ -467,7 +509,7 @@ AppraisalEvaluator
     AppraisalContext
     previous appraisal fingerprint, if any
     evaluation budget
-  -> Disposition<AppraisalResult>
+  -> Result<AppraisalResult, AppraisalEvaluationError>
 ```
 
 The result is deliberately narrow:
@@ -482,8 +524,9 @@ AppraisalResult
 When the result affects later behavior, its exact payload and previous
 fingerprint live in a typed lifecycle continuation. Only materially changed
 signals wake intent reconsideration or optional social interpretation.
-Source-head and `ReadWitness` provenance remain paired in the engine-private
-invocation envelope rather than becoming appraisal content.
+Source-head and, when retained, projector-owned `LifecycleReadWitnessK`
+provenance remain paired in the engine-private invocation envelope rather than
+becoming appraisal content.
 Inferred beliefs re-enter evidence assimilation as provenance-bearing
 deliveries; they do not bypass the epistemic lifecycle. Evaluator trace data
 belongs to the trace envelope rather than the semantic result.
@@ -504,7 +547,7 @@ SocialInterpretationEvaluator
     actor-relative social context
     accepted social evidence references
     AppraisalResult, if relevant
-  -> Disposition<SocialProposal>
+  -> Result<ActorSocialInterpretationProposal, SocialInterpretationError>
 ```
 
 The coordinator binds the proposal to the private envelope's expected social
@@ -512,10 +555,17 @@ version. The social gate validates subject scope, provenance, installed social
 vocabulary, expected version, and legal transition. Different actors may
 accept different interpretations of the same committed event.
 
+This evaluator can change only `ActorSocialInterpretation` values for the
+request actor. `IntersubjectiveClaim` values enter through typed social acts
+that prove who asserted, declared, promised, or committed what. An
+`InstitutionalFact` requires an installed constitutive rule, jurisdiction, and
+acceptance evidence. Those transitions use the same social gate but separate
+proposal variants; neither can be minted by an interpretation evaluator.
+
 A deterministic baseline is required when the capability is enabled. Minimal
-actors and domains without social semantics omit the port and its wakes. Rich
-social reasoning may later replace it without changing runtime or appraisal
-authority.
+actors and domains without social semantics use the explicit disabled binding
+and have no social wakes. Rich social reasoning may later replace it without
+changing runtime or appraisal authority.
 
 ### Intent reconsideration lifecycle
 
@@ -557,7 +607,7 @@ IntentPolicy
     relevant AppraisalResult
     trigger reason
     policy budget
-  -> Disposition<IntentOutcome>
+  -> Result<IntentOutcome, IntentPolicyError>
 ```
 
 Minimum outcomes:
@@ -578,9 +628,9 @@ policy. The agency gate resolves the selected candidate, validates template
 identity, bindings, monitor stages, allowed policy references, and current
 versions, then persists the accepted intent transition.
 
-The outer `Abstain(reason)` disposition means that the policy declines to
-propose an accepted intent transition. It is not a second ready outcome. The
-coordinator consumes the reconsideration trigger and applies the profile's
+A port-specific `NoChange` outcome means that the policy proposes no accepted
+intent transition. It is a modeled result rather than an execution failure.
+The coordinator consumes the reconsideration trigger and applies the profile's
 bounded retry, wait, or no-change rule.
 
 The initial contract applies one focal intent transition per invocation.
@@ -598,10 +648,10 @@ One port owns both creation and advancement:
 ```text
 ActivityController
   initialize(ActivityInitRequest)
-    -> Disposition<ActivityInitOutcome>
+    -> Result<ActivityInitOutcome, ActivityControllerError>
 
   advance(ActivityAdvanceRequest)
-    -> Disposition<ActivityAdvanceOutcome>
+    -> Result<ActivityAdvanceOutcome, ActivityControllerError>
 ```
 
 An accepted intent adoption or replacement schedules `ActivityInitNeeded`.
@@ -623,11 +673,12 @@ creates the activity, establishes baseline focus when applicable, and
 validates the initial directive and wake. This closes the transition from an
 accepted intent to its first action or wait.
 
-A non-ready initialization disposition is also closed explicitly. `Defer`
-creates a typed pending invocation; `Abstain` or `Fail` consumes the current
-initialization trigger and records a bounded retry, intent suspension/failure,
-or profile-declared fallback. It cannot leave an active intent dependent on an
-uncheckpointed coordinator retry.
+Every initialization decision and error is closed explicitly. A future
+captured execution binding would create a typed pending invocation before
+dispatch; an inline error consumes the current initialization trigger and
+records the profile's bounded retry, intent suspension/failure, or fallback.
+Neither path can leave an active intent dependent on an uncheckpointed
+coordinator retry.
 
 The activity controller advances on:
 
@@ -679,12 +730,12 @@ proposal.
 
 Initialization's accepted initial directive is the first controller step; it
 does not automatically schedule a second `advance`. A `Continue` directive
-must carry an explicit typed next wake. For advancement, `Defer` atomically
-consumes the current advance trigger and persists a typed continuation;
-captured completion schedules a later `ActivityAdvanceNeeded`. `Abstain` or
-`Fail` consumes the trigger and applies a declared bounded retry, wait,
-suspension, failure, or fallback rule. No non-ready result leaves an implicit
-coordinator retry.
+must carry an explicit typed next wake. A future captured activity execution
+binding would atomically consume the current trigger and persist a typed
+continuation; captured completion would schedule a later
+`ActivityAdvanceNeeded`. An inline error consumes the trigger and applies a
+declared bounded retry, wait, suspension, failure, or fallback rule. No error
+leaves an implicit coordinator retry.
 
 Actor-initiated process start, pause, resume, or interruption is initially
 modeled as a grounded action whose trusted runtime semantics manipulates a
@@ -761,20 +812,22 @@ attempt resolution. This lets the coordinator close the correct opportunity
 and emit a neutral wake for the correct sponsor without exposing the
 authoritative resolution to a replaceable controller.
 
-Selection, wait, no-applicable-action, reconsideration, outer abstention, or
-outer failure consumes the opportunity exactly once. `Abstain` records that no
-ready action outcome was proposed. `Fail` applies the profile's declared
-bounded action-failure rule; either may atomically schedule a wake,
-reconsideration, or causally linked retry, but cannot leave the current
-opportunity live.
+A selection or no-applicable-action decision consumes the opportunity exactly
+once. An inline policy error closes the attempted moment through the engine's
+declared failure path; it is not another action choice. Waiting, suspension,
+and reconsideration are activity or intent directives rather than additional
+immediate action decisions.
 
-`Defer` is the nonterminal exception: it changes `Open` to
-`WaitingForEvaluation`. Captured completion returns it to `Open` before a ready
-or terminal disposition is applied. Cancellation, timeout, or exhausted
-fallback closes it through a recorded terminal disposition. A bounded retry
-creates a causally linked successor opportunity with a new ID rather than
-reviving a consumed one. `Consumed` is a logical terminal state recorded in
-authority history; the live opportunity index may remove or tombstone it after
+Deferred execution is selected by the installed execution class, not returned
+by the policy. Beginning it changes `Open` to `WaitingForEvaluation`.
+Captured completion returns it to `Open` before a decision or terminal
+fallback is applied. Cancellation, timeout, or exhausted fallback uses the
+same ordered `Waiting -> Open -> Consumed` chain; there is no direct waiting
+to consumed edge. A visible-input change instead uses
+`Waiting(old) -> Open -> Waiting(successor)`. A bounded activity retry creates
+a causally linked successor opportunity with a new ID rather than reviving a
+consumed one. `Consumed` is a logical terminal state recorded in authority
+history; the live opportunity index may remove or tombstone it after
 publication.
 
 ### Concrete action lifecycle
@@ -783,7 +836,7 @@ The action lifecycle runs when `ActorReadyForAction` references an accepted
 open opportunity.
 
 ```text
-build ActionDecisionFrame
+build ActionContextPayload
   -> generate grounded candidates
   -> evaluate candidates
   -> select candidate ID
@@ -795,30 +848,18 @@ The stable policy port is:
 
 ```text
 ActionPolicy
-  ActionDecisionRequest
+  ActionContextPayload
     ActionOpportunityView
-    ActionDecisionFrame
     GroundedActionCandidateSet
-    relevant intent and activity summaries
-    relevant AppraisalResult
-    selection budget
-  -> Disposition<ActionOutcome>
+    relevant actor-safe lifecycle summaries
+  -> Result<ActionDecision, ActionPolicyError>
 ```
 
-Minimum outcomes:
+The complete action decision remains:
 
 ```text
 Select(candidate_id)
-Wait(lifecycle_wake_proposal)
-NoApplicableAction {
-  candidate coverage
-  actor-safe blocking condition or monitor references
-  disposition:
-    ReturnToActivity
-    ReconsiderIntent
-    WaitUntil(AgencyMonitor | SchedulerCondition)
-}
-ReconsiderIntent(reason)
+NoApplicableAction
 ```
 
 `NoApplicableAction` and an empty candidate set are valid modeled outcomes, not
@@ -826,15 +867,13 @@ runner failures. Profiles declare whether the policy sees an empty set or the
 coordinator emits the standard outcome directly; that choice is fixed in the
 execution configuration.
 
-The outer `Abstain(reason)` and `Fail(diagnostic)` dispositions have the
-terminal closure defined for the opportunity above; they are not ready
-`ActionOutcome` variants.
-
-`Wait` and `WaitUntil` are typed scheduler proposals. Runtime validates and
-commits the opportunity consumption and wake together; the coordinator cannot
-mutate the scheduler. If waiting is itself observable, costly, interruptible,
-or effectful in a domain, that domain models a real wait/rest/idle action or
-process.
+The action execution binding separately selects `InlineDeterministic` or
+`DeferredCaptured`. Both produce the same `ActionDecision`; only the latter
+uses the nonterminal waiting protocol and captured result ingress. After the
+neutral opportunity wake, the sponsoring activity may propose a typed wait,
+retry, suspension, or intent reconsideration through its own lifecycle. If
+waiting is itself observable, costly, interruptible, or effectful in a domain,
+that domain models a real wait/rest/idle action or process.
 
 ## Grounded action candidates
 
@@ -864,8 +903,10 @@ GroundedActionCandidate
   supporting evidence
 ```
 
-The action policy scores these candidates. It cannot add bindings, change the
-action definition, or select an ID absent from its input.
+The action policy cannot add bindings, change the action definition, or select
+an ID absent from its input. M3's baseline simply selects the first canonical
+candidate. Later policies may score or explain candidates behind the same
+ID-only boundary.
 
 Candidate generation is internally free to use compiled queries, indexes,
 staged binding, pruning, or a future domain-specific language. Its cross-layer
@@ -917,42 +958,30 @@ legality.
 
 ### Minimal initial decision semantics
 
-The first shared action-policy semantics should remain small:
+The first shared action-policy semantics remain the canonical candidate order
+and the two ready decisions:
 
 ```text
-ActionDecisionSemanticsDef
-  action definition key
-  semantic tags
-  base priority
+Select(first canonical applicable candidate)
+NoApplicableAction
 ```
 
-A trusted baseline evaluator maps tags and typed context features to signed,
-bounded fixed-point score contributions:
-
-```text
-ScoreContribution
-  candidate id
-  source
-  feature
-  signed delta
-  explanation
-```
-
-`DecisionScore` uses one execution-configured integer/fixed-point scale,
-checked arithmetic, and a declared overflow failure policy. The sum is useful
-for selection, but the contributions are the explanation. Ties use declared
-semantic keys and finally canonical candidate ID, never container order.
-
-This interface leaves room for a later action DSL, learned scorer, or richer
-utility model without exposing that complexity to the activity controller or
-runtime.
+Canonical ordering is already a deterministic execution contract and is
+sufficient for the rule baseline. A later policy may use semantic tags,
+fixed-point scoring, a learned ranker, or a richer action DSL internally
+without changing candidate identity, the ID-only decision boundary, private
+lowering, or runtime authority. No shared score representation is introduced
+before such a policy has a real producer and consumer.
 
 ## Runtime outcome and bounded recovery
 
 The request lowerer is trusted engine code. It resolves the selected actor-safe
 candidate through the engine-private candidate table, checks the visible
-fingerprint and the envelope's `ReadWitness`, source head, expected versions,
-and exact lowering bindings, and creates a concrete `CommandEnvelope`.
+fingerprint and exact lowering bindings, and creates a concrete
+`CommandEnvelope`. A retained M4+ invocation also checks its
+`ActionReadWitness`,
+source head, and expected versions. Synchronous M3 instead relies on the exact
+prepared-step reservation and runtime's current authoritative validation.
 
 Runtime produces an engine-private resolution:
 
@@ -1023,18 +1052,20 @@ LlmActionPolicy
 OracleActionPolicy
 ```
 
-They receive the same bounded actor-relative input and return the same
-per-port disposition:
+They receive the same bounded actor-relative input and produce the same closed
+per-port semantic result:
 
 ```text
-Ready(payload, proposed persistent state, self-reported support)
-Defer(external invocation proposal)
-Abstain(reason)
-Fail(diagnostic)
+ActionDecision :=
+  Select(candidate id, exact input fingerprint)
+  | NoApplicableAction(exact input fingerprint)
 ```
 
 They may interpret supplied evidence, rank candidate IDs, choose an allowed
-activity method, or abstain when a declared projection is missing.
+activity method, or return only an abstention variant explicitly defined by
+that particular port. `ActionPolicy` has no abstention result:
+`NoApplicableAction` is its successful semantic answer, while missing
+projection is engine-private execution control rather than a policy decision.
 
 They may not:
 
@@ -1056,17 +1087,26 @@ lifecycle-control state and survive checkpoints. The runtime protocol is:
 ```text
 DispatchPending
   -> ResultCaptured
-     -> Fresh | Stale
-     -> Applied | Reinvoked | Fallback | Discarded
-  -> TimedOut | Cancelled | Failed
-     -> FallbackPending | Discarded
+     -> Terminal(Applied { freshness } | Reinvoked { successor })
+     -> FallbackPending(cause)
+  -> FallbackPending(cause)
+
+FallbackPending(cause)
+  -> Terminal(Failed { cause })
 ```
 
-`Defer` is a pure invocation proposal. Runtime first commits the exact request
-as `DispatchPending`; only then may an at-least-once host adapter perform I/O.
+Choosing `DeferredCaptured` is an execution binding, not a policy response.
+Runtime first commits the exact request as `DispatchPending`; only then may an
+at-least-once host adapter perform I/O.
 Send-attempt status is operational rather than a second authoritative
 `Dispatched` state. The continuation occurs at a later microstep and cannot
 retroactively participate in the moment that requested it.
+
+M4 implements this authoritative invocation, capture, freshness, cancellation,
+and fallback protocol without requiring a network service. M5 proves that
+checkpoint restoration and replay reuse captured results without invoking an
+evaluator. M6 supplies authenticated CLI/MCP/player/AI transport adapters and
+product inspection over already committed projection-safe requests.
 
 `Reinvoked` means a new logical evaluation after the projection-safe policy
 payload changed, the evaluator semantic/configuration binding changed
@@ -1123,9 +1163,10 @@ branch provenance, or a pre-policy scenario root.
 
 ## Cognition invariants
 
-1. Every lifecycle invocation envelope binds one immutable authority head,
-   dependency witness, and raw cause; its policy payload contains only the
-   projection-safe semantic input.
+1. Every lifecycle invocation envelope binds one immutable authority head and
+   raw cause; a retained or deferred invocation additionally binds a positive
+   dependency witness. Its policy payload contains only the projection-safe
+   semantic input.
 2. Unavailable context is never represented as a valid empty input.
 3. Appraisal is a narrow derived result, not a cross-partition proposal bus.
 4. Intent persists until an explicit accepted lifecycle transition.
@@ -1153,13 +1194,16 @@ branch provenance, or a pre-policy scenario root.
 17. Every wait or wake is a typed proposal committed through runtime.
 18. One foreground `ActionOpportunityId` routes an attempt and its outcome to
     one explicit sponsoring activity or actor-level reaction. Every terminal
-    disposition consumes it exactly once. `Defer` performs
-    `Open -> WaitingForEvaluation`; completion returns it to `Open`, while
-    recorded cancellation, timeout, failure, or exhausted fallback closes it.
+    resolution consumes it exactly once. A `DeferredCaptured` execution
+    binding performs `Open -> WaitingForEvaluation`; completion returns it to
+    `Open` before application, reinvocation, or fallback uses the next checked
+    edge. An activity-sponsored foreground opportunity names the actor's exact
+    focused active activity version and matches the action family, method
+    state, scope, and generation already represented by that activity.
 19. Behavioral freshness uses engine-private dependency witnesses; a
     whole-world revision is private provenance rather than a policy input or
     the only validity test.
-20. Candidate identity, ordering, and score arithmetic are deterministic
+20. Candidate identity, ordering, and bounded selection are deterministic
     execution contracts.
 21. `EvidenceDelivery`, accepted `EvidenceRecord`, and accepted `Belief` are
     distinct lifecycle values.

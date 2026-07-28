@@ -7,9 +7,11 @@ after the redesign. It records which earlier concepts survive, which are
 refined, which are replaced, and how the current implementation should be
 treated.
 
-It is a temporary routing document, not a migration-by-type specification or
-a compatibility promise. It is archived after the clean replacement is
-complete; Git history remains the source of the superseded implementation.
+It is a routing document, not a migration-by-type specification or a
+compatibility promise. It remains useful while frozen documents stay at stable
+paths. If those files are eventually removed, this ledger may move with them
+to the archive; Git history remains the source of the superseded
+implementation.
 
 ## Adopted
 
@@ -101,6 +103,11 @@ cutover is defined by the active
 
 ## Document routing
 
+The repository-wide [Documentation Guide](../../README.md), [Design
+Index](../../design/README.md), and [Research Index](../../research/README.md)
+are the entry points for non-normative material. Legacy files retain stable
+paths for historical links, not because they remain active.
+
 | Earlier document | Status |
 |---|---|
 | `ADR.md` | Frozen decision history; target decision record wins |
@@ -110,9 +117,9 @@ cutover is defined by the active
 | `configurable-decision-pipeline.md` | Replaced as production control plane |
 | `implementation-plan.md` | Frozen; do not continue as active roadmap |
 | `implementation-execution-contract.md` | Frozen; `AGENTS.md` and target roadmap govern |
-| `project-conventions.md` | Supporting conventions where non-conflicting |
-| `docs/design/*.md` | Detailed subsystem input where non-conflicting |
-| `docs/research/*.md` | Rationale and evidence, not runtime authority |
+| `project-conventions.md` | Frozen pre-target conventions; `AGENTS.md` and target code architecture govern |
+| `docs/design/*.md` | Individually classified nonnormative input; frozen pre-target cross-system models must not be continued |
+| `docs/research/*.md` | Individually classified rationale, evidence, or falsification proposal; not runtime authority |
 
 ## Unresolved by design
 

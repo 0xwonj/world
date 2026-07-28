@@ -233,10 +233,10 @@ impl std::error::Error for CompilationDiagnostic {
 
 /// A deterministic, nonempty set of compilation failures.
 ///
-/// W2 compilation stops at the first owner boundary that fails, so the initial
-/// implementation constructs a set from one concrete diagnostic. The
-/// collection shape leaves room for deterministic multi-error reporting
-/// without introducing warnings, spans, or a general diagnostic framework.
+/// Compilation stops at the first semantic owner boundary that fails, so one
+/// pass currently constructs a set from one concrete diagnostic. The
+/// collection shape supports deterministic multi-error reporting without
+/// introducing warnings, spans, or a general diagnostic framework.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiagnosticSet {
     diagnostics: Vec<CompilationDiagnostic>,

@@ -2,11 +2,15 @@
 
 ## Status
 
-Current design principle.
+Partially superseded nonnormative design principle.
 
 This document defines where reusable world-simulation vocabulary and primitive
 effect semantics live. It is not a pack manifest format, parser design, modding
 API, or full gameplay standard library.
+
+The accepted crate and extension boundaries live in
+[Code Architecture](../architecture/target-architecture/code-architecture.md)
+and [Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md).
 
 ## Source Context
 
@@ -362,7 +366,7 @@ Examples:
 Actor context may depend on pure standard vocabulary and definitions. It must
 not depend on runtime semantics installers or gain mutation authority.
 
-## Stable Decisions
+## Design conclusions
 
 - The runtime core should not become the home for the growing physical,
   damage, condition, signal, resource, and process primitive vocabulary.

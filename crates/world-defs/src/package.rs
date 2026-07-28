@@ -409,7 +409,7 @@ impl ExactPackSet {
 /// Why an exact package set could not be finalized.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PackSetError {
-    /// A package-bearing input exceeded the W2 closure limit.
+    /// A package-bearing input exceeded the exact-set closure limit.
     TooManyPackages {
         /// Input collection being checked.
         collection: &'static str,
@@ -1380,6 +1380,52 @@ mod tests {
                 .iter()
                 .map(VerifiedPackArtifact::artifact_digest)
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn finalization_rejects_duplicate_and_conflicting_verified_artifacts() {
+        let (catalog, interface, operation) = interface_fixture();
+        let validator = ArtifactValidator::new(&catalog);
+        let first_coordinate = coordinate_at("test.root", 1);
+        let second_coordinate = coordinate_at("test.root", 2);
+        let first = artifact(
+            &validator,
+            first_coordinate.clone(),
+            EngineProtocolVersion::new(1),
+            Vec::new(),
+            interface.clone(),
+            operation.clone(),
+        );
+        let second = artifact(
+            &validator,
+            second_coordinate.clone(),
+            EngineProtocolVersion::new(1),
+            Vec::new(),
+            interface,
+            operation,
+        );
+        let selection = ExactPackageSelection::new(
+            first_coordinate.clone(),
+            vec![selected(first_coordinate.clone(), 1, Vec::new())],
+        );
+
+        assert_eq!(
+            rejected(ExactPackSet::finalize(
+                selection.clone(),
+                vec![first.clone(), first.clone()],
+            )),
+            PackSetError::DuplicateArtifact {
+                pack: first_coordinate.pack_key().clone()
+            }
+        );
+        assert_eq!(
+            rejected(ExactPackSet::finalize(selection, vec![second, first],)),
+            PackSetError::ConflictingArtifacts {
+                pack: first_coordinate.pack_key().clone(),
+                first: first_coordinate,
+                second: second_coordinate,
+            }
         );
     }
 

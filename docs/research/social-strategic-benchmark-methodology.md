@@ -1,5 +1,11 @@
 # Social-Strategic Benchmark Methodology
 
+## Status
+
+Nonnormative benchmark-methodology research. The production lifecycle,
+research-artifact, trace, and experiment boundaries are owned by the
+[Target Architecture Package](../architecture/target-architecture/README.md).
+
 ## Purpose
 
 This document defines the target evaluation methodology for `world` as a
@@ -33,8 +39,8 @@ Related local documents:
 
 - [Social-Strategic Evaluation Program](social-strategic-evaluation-program.md)
 - [Cognitive And Agent Research Map](cognitive-agent-research-map.md)
-- [Configurable Decision Pipeline](../architecture/configurable-decision-pipeline.md)
-- [Runtime Pipeline](../architecture/runtime-pipeline.md)
+- [Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md)
+- [Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md)
 
 ## Reference Lessons
 
@@ -1333,4 +1339,3 @@ short-term rewards while producing worse long-horizon social regret.
 
 That kind of result would make `world` research-relevant because it reveals how
 agent behavior changes under controlled social-cognitive interventions.
-

@@ -2,7 +2,12 @@
 
 ## Status
 
-Current design draft.
+Frozen pre-target cross-system design.
+
+The layered-truth motivation remains useful. Its stores, `CausalTransaction`,
+and direct cross-layer contracts are superseded by the normative state
+partitions, typed gates, and later-causal-work model in the
+[Target Architecture Package](../architecture/target-architecture/README.md).
 
 ## Source Ideas
 
@@ -387,7 +392,7 @@ separate.
 - [Semantic Appraisal And Motivation](semantic-appraisal-and-motivation.md)
   will define the appraisal layer that turns context into pressure.
 
-## Stable Decisions
+## Historical decisions
 
 - Hard truth changes only through causal transactions.
 - `EventRecord` is a hard causal fact record, not a semantic meaning

@@ -646,7 +646,7 @@ remain because each protects a distinct correctness boundary.
 
 ## W3 handoff
 
-The [active W3 plan](milestone-01-work-package-03.md) receives immutable,
+The [W3 plan and evidence](milestone-01-work-package-03.md) receives immutable,
 sealed, process-independent definition values. It may read checked actions,
 requirements, effects, and events from
 `RuntimeDefinitionSet`, but cannot bypass artifact validation, exact-set

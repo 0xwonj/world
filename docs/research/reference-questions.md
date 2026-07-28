@@ -1,5 +1,10 @@
 # Reference Research Questions
 
+## Status
+
+Nonnormative research method. Observations from a reference become target
+requirements only through explicit architecture and roadmap disposition.
+
 This document defines how to study reference games, simulations, agent
 environments, and content systems for `world`.
 

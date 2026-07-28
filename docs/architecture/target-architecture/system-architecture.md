@@ -65,9 +65,9 @@ This is the only plane that can accept world/session state changes.
 
 ### Cognition plane
 
-Builds actor-relative read models and invokes independently scheduled
-appraisal, intent, activity, and action policies. It emits typed proposals and
-selections.
+Builds actor-relative read models and invokes independently scheduled evidence,
+appraisal, optional social interpretation, intent, activity, and action
+lifecycles. It emits typed proposals and selections.
 
 It cannot mutate state and cannot read unrestricted authoritative state.
 
@@ -98,6 +98,8 @@ The following concepts are shared architecture vocabulary.
 | `ResolvedExecution` | Engine-sealed specification, root, exact resolved artifact set, normalized semantics, and activation binding validated together | Session construction |
 | `ResolvedExecutionClosureManifest` | Immutable pre-run closure required to construct or reopen a resolved execution | Attempt creation/recovery |
 | `ArtifactClosureManifest` | Frozen root-relative closure for a checkpoint, archive, or finalized run | Retained root |
+| `ScenarioArtifact` | Lab-owned immutable study provenance and checked recipe for root materialization; not runtime authority | Run case |
+| `InitialStateRoot` | Runtime-owned canonical complete materialized starting state checked against exact definitions and semantics | Session epoch root |
 | `InitialStateRootId` | Content identity of the execution-spec-independent complete starting mode/time/state/control/scheduler root | Session epoch root |
 | `ExecutionSpecId` | Exact pre-run configuration identity, excluding study/analysis | Run configuration |
 | `TrajectoryId` | Execution specification plus resulting authority-history identity | Run result |
@@ -109,6 +111,12 @@ The following concepts are shared architecture vocabulary.
 | `TerminationView` | Stage-checked projection of only the semantic facts a termination contract may read | One serialized attempt barrier |
 | `WorldSnapshot` | Immutable read image at one authoritative revision | Until superseded |
 | `ActorViewK` | Projection-safe actor-relative component assembled into `PolicyPayloadK` | One lifecycle invocation |
+| `LifecycleReadWitnessK` | Specification name for a projector-owned, port-specific private freshness witness; `ActionReadWitness` is the first concrete type | Retained lifecycle invocation |
+| `PreparationReadEvidence` | Runtime-owned evidence for authoritative reads used by one prepared transaction | One prepared step; digest may enter history |
+| `Belief` | Accepted actor-relative epistemic proposition | Until revised or retracted |
+| `ActorSocialInterpretation` | Accepted actor-scoped social meaning | Until revised or retracted |
+| `IntersubjectiveClaim` | Accepted record that identified parties asserted, declared, or committed something | Declared social-rule lifetime |
+| `InstitutionalFact` | Rule-accepted status authoritative in a declared institutional scope | Institution-rule lifetime |
 | `AppraisalResult` | Derived interpretation paired privately with its invocation envelope | One invocation or typed continuation |
 | `Intent` | Accepted commitment to a desired condition | Many action cycles |
 | `Activity` | Accepted controller state pursuing an intent | Many action cycles |
@@ -118,7 +126,7 @@ The following concepts are shared architecture vocabulary.
 | `CommandEnvelope` | Concrete request for runtime authority | One attempt |
 | `ProcessInstance` | Authoritative time-bearing world mechanism | Until completion/interruption |
 | `AttemptRecord` | Durable accepted or rejected runtime attempt | Durable history |
-| `AuthorityRecord` | Atomic ingress, moment, or management publication | Durable history |
+| `AuthorityRecord` | Atomic `Admission(Commands | ActionEvaluation)`, moment, or management publication | Durable history |
 | `WorldCheckpoint` | State-complete recovery root bound to an artifact closure | Durable |
 | `DecisionTrace` | Non-authoritative explanation and provenance graph | Configurable retention |
 
@@ -130,14 +138,17 @@ The authoritative session contains logically separate state partitions:
 
 ```text
 Domain state
-  physical, spatial, resource, inventory, ownership, institutional facts
+  physical, spatial, resource, inventory, possession, and mechanical-control
+  facts
 
 Epistemic state
   accepted actor-relative evidence records, beliefs, uncertainty, memory
   references
 
 Social state
-  accepted relationships, obligations, reputations, and institutional views
+  accepted actor-scoped social interpretations, intersubjective claims,
+  relationships, obligations, reputations, and institutionally authoritative
+  facts
 
 Agency state
   intentions, activities, focus, and interruption state
@@ -160,15 +171,38 @@ Runtime control is only a logical storage partition. It must not become a
 generic lifecycle value map: every record family has one protocol owner, typed
 schema, explicit state machine, and removal rule.
 
+### Social and epistemic truth classes
+
+Social semantics use four non-interchangeable accepted value classes:
+
+| Value class | Meaning | Commit owner |
+|---|---|---|
+| `Belief` | One actor's evidence-supported proposition; it may be false, stale, or uncertain | Epistemic gate |
+| `ActorSocialInterpretation` | One actor's accepted social reading of an event or relation, such as insult, betrayal, or perceived legitimacy | Social gate, actor-scoped |
+| `IntersubjectiveClaim` | A recorded assertion, declaration, promise, or commitment among identified parties; it proves that the act occurred, not that its proposition is true | Social gate |
+| `InstitutionalFact` | A status constituted and accepted under installed rules in a declared jurisdiction, such as membership, office, recognized title, or obligation | Social gate |
+
+An `InstitutionalFact` is authoritative within its declared institutional
+scope, not a physical fact and not every actor's belief. An
+`IntersubjectiveClaim` becomes an institutional fact only through an explicit
+rule-checked social transition. Different `ActorSocialInterpretation` values
+may coexist for the same event, claim, or institutional fact.
+
+Domain state retains physical possession and mechanical control. Social
+ownership, entitlement, permission, and title are claims or institutional
+facts. A later domain transition may read those accepted social facts through
+an explicit typed contract, but neither the social gate nor a social evaluator
+applies a physical effect.
+
 ### Typed commit gates
 
 Every accepted transition passes through a typed runtime gate:
 
 | Gate | May change | Must not infer |
 |---|---|---|
-| Domain causal gate | Domain state and domain process/control state | Actor belief or social meaning |
-| Epistemic gate | Evidence and belief state for named actors | Hidden world truth |
-| Social gate | Accepted social and institutional state | Physical effects |
+| Domain causal gate | Physical/systemic domain state and domain process/control state | Belief, social interpretation, claim, or institutional status |
+| Epistemic gate | Evidence and `Belief` state for named actors | Hidden domain truth, another actor's interpretation, or institutional acceptance |
+| Social gate | Actor-scoped interpretations, intersubjective claims, relationships, and institutional facts | Physical effects or a proposition's domain truth |
 | Agency gate | Intent/activity and lifecycle-control state | Runtime action success |
 | Resolution gate | Active representation and conversion evidence | Unrecorded reconstructed history |
 
@@ -204,6 +238,13 @@ pure component output
 This is true for an action, a belief revision, a social interpretation, an
 intent change, and a resolution transition. Different gates own different
 validity rules, but all accepted changes remain explicit and journaled.
+
+The social gate accepts a closed `SocialTransitionProposal`. An
+`ActorSocialInterpretationProposal` produced by the optional social lifecycle
+can change only actor-scoped interpretation state. Intersubjective claims and
+institutional facts enter through their own typed, provenance-bearing social
+act or institution-rule transitions; the interpretation evaluator cannot mint
+them.
 
 ## Logical components
 
@@ -300,7 +341,8 @@ Owns or coordinates:
 
 It does not expose mutable stores or an ungated public mutation API.
 `RunAttempt` supplies the host-facing capability for `advance`, `drain_until`,
-controller ingress, and management while its durable control state is active.
+system-command and captured-action-evaluation admission, and management while
+its durable control state is active.
 Finalization revokes that capability without changing the session's health
 mode or authoritative state.
 
@@ -314,7 +356,7 @@ Owns:
 - conflict resolution;
 - prepared transactions and invariant checks;
 - atomic same-moment commit batches;
-- atomic ingress and management publications;
+- atomic admission and management publications;
 - all typed commit gates;
 - process and reservation control;
 - command idempotency;
@@ -381,7 +423,8 @@ It is operationally stateless. It deterministically performs:
 - appraisal, intent, activity, and action invocation order;
 - construction of a private lifecycle invocation envelope and a separate
   projection-safe policy payload for every actor-facing port;
-- snapshot and dependency-witness freshness checks;
+- prepared-snapshot and expected-version checks, plus dependency-witness
+  freshness checks for retained or deferred work;
 - local payload reconstruction and private envelope rebinding without policy
   reinvocation when only hidden metadata changed;
 - retention of private candidate-resolution tables used after a policy selects
@@ -405,15 +448,23 @@ Player, AI, script, and test controllers use the same actor control boundary.
 The engine presents an `ActorControlFrame` containing a projection-safe
 `ActorInputFingerprint` and grounded actor-visible candidate set. Global
 revision, raw trigger provenance, dependency witness, and private candidate
-resolution data remain with the coordinator. A controller selects a candidate
-ID, waits, requests intent reconsideration, or abstains. Its response is bound
-to the exact frame by the actor-safe `ActorInputFingerprint` or an equivalent
-actor-safe opaque invocation token; an old frame cannot select against a newer
-private candidate table.
+resolution data remain with the coordinator. A ready controller decision is
+exactly selection of a supplied candidate ID or `NoApplicableAction`.
+Inline versus captured-deferred execution is selected independently of that
+decision. Cancellation, timeout, capture, reinvocation, and fallback are
+runtime invocation-control transitions; a policy error is a trusted
+coordination failure, not another action choice.
+Waiting, suspension, retry, and intent reconsideration are later activity or
+intent directives. The response is bound to the exact frame by the actor-safe
+`ActorInputFingerprint` or an equivalent actor-safe opaque invocation token;
+an old frame cannot select against a newer private candidate table.
 
 `ActionPolicy` is the automated implementation of this controller role. A UI
 may present the same candidate set to a player. Neither receives mutation
 authority, and both pass through trusted lowering and runtime revalidation.
+Every trajectory-affecting controller implementation is selected by
+`LifecycleProfiles`, included in the exact `SemanticImplementationSet`, and
+sealed into `ResolvedExecution` before activation.
 
 Session setup, migration, and privileged host administration use separate
 explicitly authorized request families and authority paths; they do not
@@ -518,12 +569,16 @@ the same actor-visible sponsor state. Retry is never recursive or unbounded.
 
 The sequence runs inside one durable `RunAttemptControl::StepReserved` gate.
 After the committed head returns, the gate evaluates the pure termination and
-finalization rule before another scheduled or ingress transition may begin.
+finalization rule before another scheduled or admission transition may begin.
 
-Ordinary external inputs use `Admit` to publish an `IngressBatchRecord`;
-authorized management uses the independent, scheduler-independent `Manage`
-path. The sequence above is the `Fire` path after an ordinary delivery or
-lifecycle trigger is already authoritative.
+Ordinary commands use `Admit` to publish
+`Admission(Commands(IngressBatchRecord))`. Captured action decisions use the
+other concrete member,
+`Admission(ActionEvaluation(ActionEvaluationAdmissionRecord))`, with their own
+identity ledger; they are not wrapped as commands. Authorized management uses
+the independent, scheduler-independent `Manage` path. The sequence above is
+the `Fire` path after an ordinary delivery or lifecycle trigger is already
+authoritative.
 
 ## Dependency direction
 
@@ -628,19 +683,28 @@ acknowledgements, but receives no raw history-pin release or compaction
 capability. These operations are outside `Σ` and cannot become another world
 transition path.
 
-Durable cross-layer lifecycle protocol records have one implementable owner.
-`world-model` defines concrete shared schemas for action opportunities,
-lifecycle continuations, pending evaluator invocations, their state-machine
-tags, and other records that runtime must persist while context or engine must
-construct. `world-runtime` stores them and enforces their structural
-transitions; `world-context` constructs projection material; `world-decision`
-owns evaluator-local algorithms and results; `world-engine` coordinates the
-typed handoff. Built-in persistent controller state uses concrete model types.
-Only a genuinely implementation-defined state slot may use a bounded,
-canonical, versioned sealed payload tied to one exact lifecycle port and
-semantic implementation; runtime validates its binding, schema, size, expected
-version, and replacement rule. This is not a generic key/value blackboard, and
-it does not let runtime depend on context or decision.
+Durable lifecycle records have one implementable owner according to their
+meaning. `world-model` defines only shared accepted semantic lifecycle
+schemas—such as intent, activity, action-opportunity, and process records—that
+must appear in immutable snapshots, typed semantic deltas, or lower-package
+queries. `world-runtime` defines and stores nonsemantic coordination and
+control schemas, including typed lifecycle-continuation envelopes, pending
+evaluator invocations, captured-result and capture-ledger records, frontier
+blockers, cancellation generations, retry/fallback dispositions, and
+scheduler integration. Runtime stores accepted model records and alone
+enforces their authoritative transitions, but that storage role does not move
+their semantic schemas into runtime.
+
+`world-context` owns projection material and concrete projection witnesses;
+`world-decision` owns evaluator-local algorithms and results; and
+`world-engine` coordinates the typed handoff without durably owning either
+semantic state or invocation control. Built-in persistent semantic controller
+state uses concrete model types. Only genuinely implementation-defined
+evaluator state may use a bounded, canonical, versioned sealed payload tied to
+one exact lifecycle port and semantic implementation; runtime validates its
+binding, schema, size, expected version, and replacement rule. This is not a
+generic key/value blackboard, and it does not let runtime depend on context or
+decision.
 
 The authoritative session head and its commit capability must reside behind one
 compile-time-enforceable boundary. If separating storage and runtime into
@@ -672,9 +736,9 @@ Engine
   inspect_capabilities
 
 RunAttempt
-  submit_controller_request
-  submit_external_input
-  submit_evaluator_result
+  submit_system_command
+  pending_action_evaluations
+  capture_action_evaluation_result
   submit_management_request
   cancel_attempt
   advance
@@ -755,7 +819,7 @@ No public API accepts an arbitrary callback with mutable world access.
 ## System-wide invariants
 
 1. Only the runtime commit capability can advance authoritative revision.
-2. Every authoritative revision transition publishes one atomic ingress,
+2. Every authoritative revision transition publishes one atomic admission,
    moment, or management authority record.
 3. One due `SimMoment` is resolved from one base snapshot into one
    `MomentBatchRecord`; external admission is a separate typed transition.
@@ -764,7 +828,8 @@ No public API accepts an arbitrary callback with mutable world access.
    witness.
 5. Hidden truth cannot enter decision inputs through feasibility checks,
    diagnostics, or candidate omission.
-6. Evaluators return proposals or stable input IDs, never mutations.
+6. Evaluators return bounded port-specific decisions selecting supplied stable
+   IDs, never mutations.
 7. Runtime deduplicates before logical admission and revalidates every
    genuinely new command against current authoritative state.
 8. Intent and activity survive unrelated action cycles.

@@ -3,10 +3,17 @@
 ## Repository Contract
 
 This repository is an early Rust implementation of a simulation-first RPG
-engine. The normative cross-system target architecture lives under
+engine. Start documentation work at `docs/README.md`. The only normative
+cross-system architecture lives under
 `docs/architecture/target-architecture/`. `docs/design/` and `docs/research/`
-remain detailed inputs; older files directly under `docs/architecture/` are
-frozen legacy planning where they conflict with the target package.
+are individually classified nonnormative inputs by their local indexes.
+Older files directly under `docs/architecture/` are frozen legacy planning,
+not alternate contracts.
+
+A required capability is architecture-complete only when it has a normative
+owner, validation scenario, roadmap milestone, and completion evidence. A
+research link or design description alone does not make it part of the
+executable target.
 
 ## Working Rules
 

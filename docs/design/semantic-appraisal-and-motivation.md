@@ -2,11 +2,14 @@
 
 ## Status
 
-Current design draft.
+Active nonnormative evaluator-internal exploration.
 
 This document defines the target structure for semantic appraisal and
-motivation. It is not an implementation schema or delivery plan. The record
-shapes are conceptual contracts for later implementation.
+motivation. Public input/result, authority, retention, and lifecycle contracts
+live in
+[Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md).
+The representations below are evaluator-owned candidates, not an
+implementation schema or delivery plan.
 
 ## Source Research
 
@@ -15,7 +18,7 @@ shapes are conceptual contracts for later implementation.
 - [Actor Pressure And Interpretation](../ideas/actor-pressure-and-interpretation.md)
 - [Semantic Kernel And PL Boundary](../ideas/semantic-kernel-and-pl-boundary.md)
 
-## Related Design Owners
+## Related design inputs
 
 - [Simulation Core](simulation-core.md)
 - [Truth, Authority, And Layer Boundaries](truth-authority-and-layer-boundaries.md)
@@ -915,7 +918,7 @@ because:
   AppraisalRule(taboo_violation_by_responsible_actor) matched
 ```
 
-## Stable Decisions
+## Evaluator design conclusions
 
 - Appraisal turns actor-relative information into meaning and pressure.
 - Appraisal does not choose actions.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Active. W1 and W2 are complete; W3 is the active detailed work package.
+Complete. W1-W5 satisfy the M1 acceptance gates.
 
 ## Goal
 
@@ -57,7 +57,7 @@ selectable path nor a compatibility layer.
 
 ### W3: Runtime authority
 
-- [Active detailed plan](milestone-01-work-package-03.md)
+- [Completed plan and evidence](milestone-01-work-package-03.md)
 - add private session head, cursor, root construction, record draft/seal/apply,
   and an in-memory atomic repository;
 - implement attempt creation, reservation, receipt, finalization, and
@@ -68,6 +68,7 @@ selectable path nor a compatibility layer.
 
 ### W4: Engine and standard semantic implementation
 
+- [Completed plan and evidence](milestone-01-work-package-04.md)
 - implement `EngineDistribution`, artifact resolution, sealed
   `ResolvedExecution`, and runtime activation;
 - implement `Engine`, `RunAttempt`, `WorldSession`, and one inspector query;
@@ -76,11 +77,12 @@ selectable path nor a compatibility layer.
 
 ### W5: Conformance and absence proof
 
+- [Completed plan and evidence](milestone-01-work-package-05.md)
 - prove the old mutable model, runtime, context, and generic decision code
   removed during the workspace cutover have not re-entered;
 - prove the target-shaped `world-engine` has no dependency on
   `world-authoring`;
-- add black-box conformance and owner-local privacy/authority tests;
+- complete black-box conformance and owner-local privacy/authority tests;
 - prove no replaced symbol or forbidden dependency edge remains.
 
 Only the current implementation package receives lower-level task
@@ -100,6 +102,19 @@ The final M1 tree contains no:
 - broad legacy context pipeline;
 - source-scan authority allowlist used in place of privacy;
 - compatibility wrapper or old/new feature switch.
+
+## Reference-game slice
+
+M1 proves only the first physical verb from the
+[Reference Game Vision](../../design/reference-game-vision.md): an exact
+pack-defined containment transfer reaches the public engine/runtime authority
+path and is visible through the read facade afterward.
+
+Local grids, capability-derived object interaction, social state, cognition,
+and multi-resolution execution remain later milestone work. M1 must not create
+empty placeholders for them, but its engine, definition, runtime, and
+inspection boundaries must permit those later consumers without another
+authority path.
 
 `world-context` and `world-decision` remain absent from active workspace
 membership until M3. `world-lab` and `world-cli` are introduced in M6.
@@ -132,10 +147,13 @@ Stop for an explicit decision before:
   authority publication;
 - state, scheduler, history, cursor, and receipt expose old or new together;
 - duplicate controller input cannot create a second transfer;
-- missing ownership, stale witness, conflicting resource, invalid interface,
-  and altered artifact fail closed;
+- missing ownership, stale source state, stale reservation/cursor evidence,
+  same-moment slot contention, invalid interface, and altered artifact fail
+  closed;
 - termination is evaluated from the runtime-owned verified contract;
-- the final session is inspectable only through `WorldSession`.
+- the public engine facade exposes the final session only through
+  `WorldSession`; its underlying cross-crate read capability remains
+  `RuntimeSessionReader`.
 
 ### Determinism
 
@@ -154,14 +172,66 @@ cargo test --workspace
 git diff --check
 ```
 
-Validation scenarios 13 and 18, plus the runtime-authority portion of scenario
-1, must pass.
+The M1-supported portion of validation scenario 13 and the single-slot
+runtime-authority portion of scenario 1 must pass. M1 also proves deterministic
+repetition, an exact dependency graph without a random provider, and absence
+of the target random protocol; full keyed-randomness scenario 18 begins in M2
+with the first real random consumer.
 
 ## Completion evidence
 
-To be filled at milestone close.
+M1 now contains one complete target-shaped vertical slice:
+
+```text
+checked pack source
+  -> deterministic compilation and verified artifact
+  -> exact pack closure and linked definitions
+  -> semantic installation and sealed resolution
+  -> controller admission
+  -> staged Fire evaluation
+  -> one sealed atomic authority publication
+  -> read-only world inspection
+```
+
+The completed workspace contains exactly nine packages and the dependency
+direction recorded by W5. `world-runtime` is the sole owner of the session
+head, reservation evidence, record sealing, and aggregate publication;
+`world-engine` composes verified definitions and trusted semantics without
+depending on authoring or a standard runtime implementation; callers receive
+only opaque control capabilities and read-only session access.
+
+All five work packages have recorded package-local evidence:
+
+- [W1](milestone-01-work-package-01.md) replaces the workspace and freezes
+  canonical core protocols;
+- [W2](milestone-01-work-package-02.md) establishes artifacts, exact package
+  closure, definitions, and structured authoring;
+- [W3](milestone-01-work-package-03.md) establishes the private runtime
+  authority and attempt protocol;
+- [W4](milestone-01-work-package-04.md) composes the engine and executes the
+  standard transfer through public APIs;
+- [W5](milestone-01-work-package-05.md) makes dependency, absence, authority,
+  failure, privacy, and deterministic behavior executable conformance facts.
+
+The final verification passed 205 workspace unit and integration tests and 28
+compile-fail doctests. Formatting, locked all-target dead-code-denied
+compilation, locked workspace compilation, warning-denied Clippy, locked
+workspace tests, explicit workspace doctests, exact metadata and dependency
+inspection, and whitespace verification all passed.
+
+No M1 closure fix changed the target authority boundary or dependency
+direction. The only scope reconciliation was to state cumulative validation
+scenarios truthfully: M1 proves the supported scenario 13 boundary set, the
+single-slot atomic-authority subset of scenario 1, and the deterministic and
+structural-absence baseline of scenario 18.
 
 ## Next milestone handoff
 
-M2 generalizes only the runtime contracts exercised by this slice. It does not
-introduce cognition or product work.
+The [M1 exit review](milestone-01-exit-review.md) found the top-level
+architecture fit for M2 and separated essential authority complexity from the
+singular representation that must be replaced. The
+[proposed M2 plan](milestone-02-deterministic-kernel.md) generalizes the
+exercised single-slot authority into same-moment batching, footprints and
+total conflict resolution, complete causal routing, bounded work, and keyed
+randomness. It does not introduce cognition, actor-relative context, AI
+integration, product adapters, or durable persistence.

@@ -1,0 +1,14 @@
+[package]
+name = "world-context"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+minicbor.workspace = true
+world-core = { path = "../world-core" }
+world-defs = { path = "../world-defs" }
+world-model = { path = "../world-model" }
+
+[lints]
+workspace = true

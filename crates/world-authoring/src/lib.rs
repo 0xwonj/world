@@ -10,3 +10,5 @@ mod source;
 pub use compiler::{AuthoringCompiler, Compilation};
 pub use diagnostic::{CompilationDiagnostic, DiagnosticSet, SourceGraphError};
 pub use source::{CompileRequest, PackSource};
+
+pub use world_defs::{EngineProtocolVersion, SourceSnapshotId};

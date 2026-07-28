@@ -2,7 +2,12 @@
 
 ## Status
 
-Current design draft.
+Partially superseded nonnormative multi-resolution design input.
+
+The normative one-authority, one-active-representation, time, transition, and
+refinement obligations live in
+[Runtime, Persistence, And Scale](../architecture/target-architecture/runtime-persistence-and-scale.md).
+The algorithms and examples below remain candidate implementations.
 
 ## Source Ideas
 
@@ -11,7 +16,7 @@ Current design draft.
 - [Causal Runtime / Action-Effect-Event](../research/causal-runtime-action-effect-event.md)
 - [Time Model / Turn Scheduling](../research/time-model-and-turn-scheduling.md)
 
-## Related Design Owners
+## Related design inputs
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
@@ -44,16 +49,16 @@ This document owns:
 - observation boundaries for abstract state
 - authority constraints for hard and soft state across resolution changes
 
-Multi-resolution execution is a reusable mechanism. Concrete `ProcessDef`
+Multi-resolution execution is a reusable mechanism. Concrete process
 families for travel, recovery, crafting, construction, faction projects,
 rituals, patrols, trade routes, and strategic conflicts may be game-system pack
-definitions, but they advance through the shared process, transaction, event,
-and truth-authority boundaries.
+definitions, but they advance through the shared process, prepared-transition,
+authority-record, and typed-gate boundaries.
 
-The [Simulation Transition Compiler](simulation-transition-compiler.md) frames
-multi-resolution as target-specific lowering plus abstract/refined execution
-contracts. Concrete and abstract execution may use different state surfaces,
-but both must preserve authority, provenance, and durable consequences.
+The normative architecture treats multi-resolution as a refinement relation,
+not as a separate simulation authority. Concrete and abstract execution may
+use different state surfaces, but both preserve canonical identity, declared
+hard invariants, causal time, provenance, and durable consequences.
 
 ## Core Principle
 
@@ -579,7 +584,7 @@ Promotion:
   preserved
 ```
 
-## Stable Decisions
+## Domain design conclusions
 
 - Resolution is detail/execution policy, not truth authority.
 - Do not create separate abstract and concrete process systems.

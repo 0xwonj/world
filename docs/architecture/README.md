@@ -2,13 +2,17 @@
 
 ## Status
 
-The greenfield target architecture is now authoritative under
+The target architecture is the only active cross-system architecture:
 [`target-architecture/`](target-architecture/README.md).
 
-The earlier files listed below predate that redesign. They remain valuable as
-detailed inputs and implementation history, but where they conflict with the
-target package, the target package wins. Reconciliation and archival should
-happen incrementally as implementation moves to the new contracts.
+The other Markdown files directly in this directory predate the redesign.
+They are frozen historical inputs retained at stable paths because older
+research and design notes cite them. They must not be continued as plans or
+implemented as current contracts. Their dispositions are recorded in
+[Legacy Reconciliation](target-architecture/legacy-reconciliation.md).
+
+Start from the repository-wide [Documentation Guide](../README.md), not from a
+legacy file reached through an old link.
 
 ## Purpose
 
@@ -32,6 +36,9 @@ The documentation responsibilities are:
   component structure, dependency direction, and public surfaces.
 - [Formal System Model](target-architecture/formal-model.md): minimal state,
   transition, subsystem, compiler, determinism, and refinement model.
+- [Target Rust Code Architecture](target-architecture/code-architecture.md):
+  physical crate/module ownership, visibility, public APIs, and clean-rewrite
+  cuts.
 - [Cognition and Agency Lifecycles](target-architecture/cognition-and-agency.md):
   actor-relative context and the separate appraisal, intent, activity, action,
   and process contracts.
@@ -41,6 +48,8 @@ The documentation responsibilities are:
 - [Extensibility and Research](target-architecture/extensibility-and-research.md): pack
   artifacts, executable definition families, extension trust, experiments,
   trace, and metrics.
+- [ArtifactBlobV1 Protocol](target-architecture/artifact-blob-v1.md):
+  byte-complete foundation compiled-pack appendix.
 - [Architecture Decisions](target-architecture/decisions.md): accepted target decisions.
 - [Validation Scenarios](target-architecture/validation-scenarios.md): adversarial
   architecture acceptance cases.
@@ -49,40 +58,25 @@ The documentation responsibilities are:
 - [Legacy Reconciliation](target-architecture/legacy-reconciliation.md):
   adopted, refined, and replaced earlier architecture and implementation.
 
-Research support:
+Primary research support:
 
 - [Architecture Redesign Research Synthesis](../research/architecture-redesign-synthesis.md)
+- [Gameplay Composition And Evolution Research](../research/gameplay-composition-and-evolution-research.md)
 
 Operational execution status and rolling milestone plans live under
 [`docs/implementation/target-rewrite/`](../implementation/target-rewrite/README.md).
 
-## Earlier architecture documents
+## Frozen pre-target documents
 
-- [Architecture Roadmap](roadmap.md): dependency order for stabilizing the
-  architecture before crate design or implementation planning.
-- [Architecture Decisions](ADR.md): compact decision notes for why the current
-  architecture shape was selected.
-- [Engine Architecture](engine.md): logical runtime components, ownership, and
-  dependency direction before crate boundaries are chosen.
-- [Runtime Pipeline Architecture](runtime-pipeline.md): request, process,
-  effect, commit, observation, semantic, and resolution flow through the
-  logical component structure.
-- [Crate Boundary Architecture](crates.md): candidate Rust workspace and crate
-  boundaries derived from authority ownership and dependency direction.
-- [Project Conventions](project-conventions.md): stable Rust workspace,
-  dependency, ID, error, diagnostics, serialization, async, and accelerator
-  policies that should be fixed before implementation details.
-- [Implementation Plan](implementation-plan.md): high-level phased build order,
-  implementation principles, and phase exit conditions.
-- [Implementation Execution Contract](implementation-execution-contract.md):
-  mandatory agent workflow, public API guardrails, review gates, and phase
-  completion checks for long-running implementation runs.
+- [Architecture Roadmap](roadmap.md)
+- [Architecture Decisions](ADR.md)
+- [Engine Architecture](engine.md)
+- [Runtime Pipeline Architecture](runtime-pipeline.md)
+- [Crate Boundary Architecture](crates.md)
+- [Configurable Decision Pipeline](configurable-decision-pipeline.md)
+- [Implementation Plan](implementation-plan.md)
+- [Implementation Execution Contract](implementation-execution-contract.md)
+- [Project Conventions](project-conventions.md)
 
-Earlier reading order:
-
-```text
-roadmap.md -> ADR.md -> engine.md -> runtime-pipeline.md -> crates.md -> project-conventions.md -> implementation-plan.md -> implementation-execution-contract.md
-```
-
-These documents should not be extended with new target-level decisions without
-first checking the normative package.
+Do not use these as a reading sequence. Their status headers route to the
+current owner. New target-level decisions belong only in the normative package.

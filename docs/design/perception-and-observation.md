@@ -2,12 +2,15 @@
 
 ## Status
 
-Current design draft.
+Partially superseded nonnormative perception design input.
 
 This document replaces the older `Perception and Knowledge` framing. Knowledge,
 belief, memory, rumor, and secrets now belong to
 [Epistemic State](epistemic-state.md). This document only covers current
 actor-relative perception and observation projection.
+
+The normative disclosure, projection, evidence, and routing contracts live in
+[Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md).
 
 ## Related Designs
 
@@ -21,13 +24,15 @@ actor-relative perception and observation projection.
 
 ## Purpose
 
-Perception turns hard world state and committed `EventRecord`s into
+Perception turns authoritative world state and committed domain occurrences
+carried by post-commit reaction work into
 actor-relative observations.
 
 It answers:
 
 ```text
-What can this actor currently sense, and how does the world or EventRecord
+What can this actor currently sense, and how does the world or committed
+domain occurrence
 appear from that actor's perspective?
 ```
 
@@ -45,15 +50,14 @@ Those belong to later layers.
 ## Position In The Engine
 
 ```text
-Hard World State / EventRecord
+Authoritative domain state / committed reaction input
   -> ObservationProjection
-  -> ObservedState / ObservedEvent
-  -> Epistemic State persistence gate
-  -> Semantic Appraisal
-  -> Pressure / GoalPressure
-  -> Intent
-  -> Activity
-  -> ActionRequest
+  -> EvidenceDelivery proposal
+  -> Epistemic gate
+  -> later appraisal
+  -> later intent
+  -> persistent activity
+  -> one-shot grounded action opportunity
 ```
 
 Stable `Goal` records may also influence later intent selection, but
@@ -407,7 +411,7 @@ ObservedEvent preserves perceived roles and confidence
 
 Revenge belongs to semantic appraisal, not perception.
 
-## Stable Decisions
+## Domain design conclusions
 
 - Perception is current actor-relative projection, not memory.
 - Perception is derived from actor-owned perceptual capability plus world

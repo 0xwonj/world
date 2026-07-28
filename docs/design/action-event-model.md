@@ -2,10 +2,13 @@
 
 ## Status
 
-Terminology sketch.
+Frozen pre-target terminology sketch.
 
-This is not a detailed design owner. It is a short anchor for the core
-terminology that older research and idea notes still reference.
+This is not a current design owner. Older research and idea notes still
+reference its vocabulary, but actions, domain events, authority records, and
+processes are now defined by the
+[Target Architecture Package](../architecture/target-architecture/README.md).
+Where the terms below differ, the target package wins.
 
 Actions are requests. `EventRecord`s are hard facts.
 

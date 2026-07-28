@@ -2,15 +2,17 @@
 
 ## Status
 
-Current design overview.
+Frozen pre-target design overview.
 
-This document is the map of the engine design. It does not define every
-subsystem in detail. It records how the design documents fit together and which
-layer owns each kind of truth, mutation, projection, and interpretation.
+This was the map of the design before the target rewrite. Its domain goals
+remain useful, but its `ActionRequest`, `CausalTransaction`, `EventRecord`,
+replay, and ownership summaries are not current contracts. Use the
+[Target Architecture Package](../architecture/target-architecture/README.md)
+as the system map and [Design Document Index](README.md) for current routing.
 
 ## Design Documents
 
-Current design map:
+Historical design map:
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
 - [Pack Authoring And Semantic Declarations](pack-authoring-and-semantic-declarations.md)
@@ -290,7 +292,7 @@ game-relevant changes still need provenance and a commit gate.
 Full deterministic command replay is a selected debug, test, or subsystem
 requirement. It is not the global baseline for every runtime path.
 
-## Stable Decisions
+## Historical decisions
 
 - `ActionRequest` is the attempted-change interface.
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)

@@ -2,7 +2,14 @@
 
 ## Status
 
-Current design draft
+Frozen pre-target runtime design.
+
+The `CausalTransaction`, `EventRecord`, and scheduler contracts below are
+historical inputs. The current authority, transaction, history, and scheduling
+contracts are owned by
+[Runtime, Persistence, And Scale](../architecture/target-architecture/runtime-persistence-and-scale.md)
+and the [Formal Model](../architecture/target-architecture/formal-model.md).
+Do not implement this document as a competing runtime.
 
 ## Source Research
 

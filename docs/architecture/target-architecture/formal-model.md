@@ -219,6 +219,54 @@ semantics. Everything else outside these declared planes is a reconstructible
 cache, reliable-delivery obligation, or disposable telemetry and cannot
 influence world behavior.
 
+### Epistemic and social truth classes
+
+The accepted partitions distinguish four value classes:
+
+```text
+Belief(a, proposition, support, confidence)
+  ∈ accepted_state.epistemic
+
+ActorSocialInterpretation(a, subject, meaning, support)
+  ∈ accepted_state.social.actor_interpretations
+
+IntersubjectiveClaim(claim_id, parties, act, proposition, provenance)
+  ∈ accepted_state.social.claims
+
+InstitutionalFact(scope, subject, status, constitutive_rule, evidence)
+  ∈ accepted_state.social.institutional_facts
+```
+
+`Belief` is an actor-relative epistemic proposition and need not equal domain
+truth. `ActorSocialInterpretation` is also actor-relative, but its predicate is
+social meaning rather than a general descriptive proposition. Different
+actors may hold incompatible interpretations of one event.
+
+`IntersubjectiveClaim` makes the assertion, declaration, promise, or commitment
+act authoritative history among its identified parties. It does not make the
+embedded proposition a domain fact, belief, or institutional fact.
+`InstitutionalFact` is authoritative only within `scope` because an installed
+constitutive rule accepted it; it is not physical truth and need not be known
+or accepted by every actor.
+
+The transition constructors are disjoint:
+
+```text
+EpistemicGate accepts
+  EpistemicTransitionProposal -> Belief delta
+
+SocialGate accepts
+  ActorSocialInterpretationProposal -> actor-interpretation delta
+  | IntersubjectiveClaimProposal     -> claim delta
+  | InstitutionalTransitionProposal -> institutional-fact delta
+```
+
+The optional `SocialInterpretationEvaluator` can produce only the first social
+proposal family. Claim and institutional transitions require their own typed
+social act or rule evidence. None of these transitions applies a physical
+delta; a transaction that coordinates social and domain partitions declares
+and verifies both gate receipts explicitly.
+
 ## Derived values
 
 The following are derived artifacts rather than independent truth:
@@ -237,13 +285,18 @@ PolicyPayloadK =
   assemble(actor_safe_cause, permitted_time, ActorViewK,
            permitted lifecycle/controller values, grounded values)
 
+PreparationReadEvidence =
+  exact_authoritative_reads_and_versions(Γ, snapshot(Σ), admitted request)
+
 PreparedTransaction =
-  prepare(Γ, snapshot(Σ), admitted request)
+  prepare(Γ, snapshot(Σ), admitted request, PreparationReadEvidence)
 ```
 
 A derived artifact may be retained in a typed lifecycle continuation when it
 must cross a microstep, external invocation, or checkpoint. Retention does not
 turn it into domain, epistemic, social, or agency truth.
+`PreparationReadEvidence` is runtime-owned same-step verifier input; only its
+canonical digest may survive in authority history.
 
 For every actor-facing lifecycle `K`, the trusted coordinator separates its
 authority binding from its policy-visible meaning:
@@ -252,7 +305,8 @@ authority binding from its policy-visible meaning:
 InvocationEnvelopeK =
   authority head and global revision
   raw SimMoment and trigger provenance
-  dependency ReadWitness and expected versions
+  expected accepted-state versions
+  LifecycleReadWitnessK, when retained or deferred
   private candidate-resolution and validation data
   private diagnostics
   PolicyPayloadK
@@ -270,9 +324,16 @@ PolicyPayloadK =
 These are conceptual layers refined by concrete port types, not one universal
 envelope. The evaluator receives only `PolicyPayloadK`. The coordinator keeps
 `InvocationEnvelopeK`, reattaches the result, and uses the private data for
-freshness, selected-ID resolution, and commit validation. A deferred
-invocation checkpoints both layers, but only the policy payload crosses the
-replaceable evaluator boundary.
+freshness, selected-ID resolution, and commit validation. An inline evaluation
+that completes inside one reserved prepared step is bound to that prepared
+snapshot and expected versions and needs no dependency witness. A retained or
+deferred evaluation carries its projector-owned `LifecycleReadWitnessK`
+because its result survives the prepared step. The notation is refined by a
+concrete port type rather than one universal runtime struct; M4 begins with
+context-owned `ActionReadWitness`. Runtime's same-step
+`PreparationReadEvidence` is a different value used to verify a prepared
+authoritative transaction. Only the policy payload crosses the replaceable
+evaluator boundary.
 
 Grounded candidate IDs are computed before enclosing fingerprints and never
 depend on them. A candidate-set fingerprint omits its own field from its
@@ -281,6 +342,42 @@ fingerprint, which also omits its own field. Checkpointed envelopes retain only
 durable definition/entity references. Activation-local intern IDs,
 implementation pointers, and dispatch handles are reconstructed after restore
 and never enter durable identity.
+
+### Grounding is not authoritative executability
+
+For one open action opportunity `u`, actor `a`, action definition `d`, and
+complete typed binding `β`, define actor-safe discovery separately from
+runtime legality:
+
+```text
+CandidateΓ(V, u, d, β)
+  iff InScope(u, d)
+   ∧ CompleteTypedBinding(d.roles, β)
+   ∧ DiscoverΓ(V, d, β)
+
+ExecutableΓ(Σ, a, d, β)
+  iff PermissionΓ(Σ, a, d, β)
+   ∧ RequirementΓ(Σ, d, β)
+   ∧ ResourceAvailabilityΓ(Σ, d, β)
+   ∧ HardInvariantsΓ(Σ, d, β)
+```
+
+`V` is the action-lifecycle actor view, while `Σ` is authoritative state.
+Grounding may evaluate only the first predicate. A candidate therefore proves
+that every declared role is actor-safely and type-correctly bound; it does not
+claim that hidden authoritative requirements hold. The private resolution
+table has exactly one entry for every public candidate and cannot remove,
+insert, or reorder candidates after consulting `Σ`.
+
+For M3, let `BΓ(a, u, Σ)` be the primitive permitted action-view basis,
+defined independently of projector output. Then:
+
+```text
+Σ1 ≈a,u Σ2
+  iff canonical(BΓ(a, u, Σ1)) = canonical(BΓ(a, u, Σ2))
+```
+
+This non-circular basis is the fixture boundary for paired-state tests.
 
 ## Subsystem contract
 
@@ -291,22 +388,18 @@ conceptually a pure staged transducer:
 evaluateK:
   ΓK
   × immutable InputK
-  -> EvaluationDisposition<OutputK, ProposedStateK>
+  -> Result<DecisionK, ErrorK>
 ```
 
-The shared disposition is:
-
-```text
-Ready(output, proposed_state)
-Defer(external_invocation_proposal)
-Abstain(reason)
-Fail(diagnostic)
-```
-
-Concrete ports retain concrete input, output, and state types. For an
-actor-facing port, `InputK` is its `PolicyPayloadK` and includes only the
-permitted semantic/controller state view. This shape does not justify a
-universal `Subsystem<I, O>` trait or a cross-lifecycle result envelope.
+`DecisionK` is the port's bounded semantic algebra and may include a
+port-specific no-change or declined outcome where that outcome is meaningful.
+`ErrorK` is a closed trusted-coordination failure algebra, not a simulation
+choice. Proposed persistent implementation state, when present, is part of
+the concrete decision and remains bound to the expected state version in the
+private invocation envelope. For an actor-facing port, `InputK` is its
+`PolicyPayloadK` and includes only the permitted semantic/controller state
+view. This shape does not justify a universal `Subsystem<I, O>` trait, a
+cross-lifecycle result envelope, or generic abstention and deferral variants.
 Storage, publication, and external-I/O adapters instead refine their own
 explicit protocols; they are not forced into this evaluator shape.
 `ΓK` is likewise the exact capability-scoped semantic/configuration view
@@ -320,21 +413,25 @@ A conforming subsystem:
 4. cannot carry the private commit capability;
 5. selects supplied stable IDs instead of inventing executable structure where
    the boundary requires grounding;
-6. proposes any persistent local-state value while the coordinator binds it to
-   the expected version retained in the private invocation envelope;
+6. includes any proposed persistent local-state value in its concrete decision
+   while the coordinator binds it to the expected version retained in the
+   private invocation envelope;
 7. is deterministic under `Γ`, or uses the captured-external protocol;
-8. has explicit abstention, failure, budget, and migration semantics.
+8. has explicit no-change, failure, budget, and migration semantics where
+   those concepts apply.
 
-An inline deterministic evaluator may complete during one moment evaluation.
-A deferred evaluator cannot retroactively join that moment. Its private
-invocation binding and exact policy payload are committed before the payload
-is dispatched durably, and its continuation runs at a later microstep after an
-admitted result or after a `Manage` transition records cancellation, timeout,
-or failure and schedules any declared fallback.
+Execution mode is orthogonal to this semantic function. An inline deterministic
+binding may complete during one moment evaluation. A captured-deferred binding
+commits the private invocation and exact policy payload before dispatch, then
+admits a canonical `DecisionK` at a later microstep. It cannot retroactively
+join the creating moment. A `Manage` transition records cancellation, timeout,
+or failure and schedules any declared fallback without fabricating a semantic
+decision.
 
-Invalidating a private dependency witness may cause trusted local projection,
-selected-ID resolution, or runtime validation to run again. It creates a new
-logical evaluator invocation only if the rebuilt `PolicyPayloadK` changes or a
+For retained or deferred work, invalidating a private
+`LifecycleReadWitnessK` may cause trusted local projection, selected-ID
+resolution, or runtime validation to run again. It creates a new logical
+evaluator invocation only if the rebuilt `PolicyPayloadK` changes or a
 separate actor-visible configured cause requests one. An explicit child
 branch/epoch change to the evaluator semantic or configuration binding also
 permits a new invocation; noninterference comparisons hold under fixed `ΓK`.
@@ -350,18 +447,118 @@ invocation remains unresolved. `Admit` atomically captures the result and
 releases the barrier; `Manage` atomically records and releases or disposes it.
 `HostScheduled` is the explicit nonblocking alternative.
 
+### Retained action-evaluation product
+
+The first concrete retained evaluator is action selection. Let `O` be one
+accepted action opportunity and `I` one runtime invocation:
+
+```text
+O :=
+  Open(v, generation)
+  | Waiting(v, generation, invocation)
+  | Consumed(v, generation, disposition)
+
+I :=
+  DispatchPending(request, artifacts, admission)
+  | ResultCaptured(result, effective, scheduler key)
+  | FallbackPending(cause, scheduler key)
+  | Terminal(
+      Applied(result, freshness)
+      | Reinvoked(result, successor)
+      | Failed(cause)
+    )
+```
+
+The legal paired transitions are:
+
+```text
+begin:
+  O: Open -> Waiting(i)
+  I: absent -> DispatchPending
+
+capture:
+  O: Waiting(i) -> Waiting(i)
+  I: DispatchPending -> ResultCaptured
+
+apply:
+  O: Waiting(i) -> Open -> Consumed
+  I: ResultCaptured -> Terminal(Applied)
+
+reinvoke:
+  O: Waiting(i) -> Open(generation + 1) -> Waiting(successor)
+  I: ResultCaptured -> Terminal(Reinvoked(successor))
+  Isuccessor: absent -> DispatchPending
+
+require fallback:
+  O: Waiting(i) -> Waiting(i)
+  I: DispatchPending | ResultCaptured -> FallbackPending
+
+finish fallback:
+  O: Waiting(i) -> Open -> Consumed(Failed)
+  I: FallbackPending -> Terminal(Failed)
+```
+
+Each arrow in a two-edge opportunity chain is retained in canonical order in
+the same authority publication. No transition skips directly from `Waiting`
+to `Consumed`, and no terminal invocation can reopen an opportunity.
+
+Freshness is the product of two independent checks:
+
+```text
+Freshness := PolicyProjection × ExecutionValidation
+
+Current                            = unchanged × unchanged
+ProjectionRebound                 = changed   × unchanged
+ExecutionRevalidated              = unchanged × changed
+ProjectionReboundAndExecutionRevalidated
+                                   = changed   × changed
+```
+
+This product describes trusted reuse work, not evaluator-visible input. If the
+rebuilt canonical policy payload is byte-identical, the original logical
+decision remains eligible and private projection/resolution material is
+rebound as needed. If the payload differs, the result cannot be applied: a
+budgeted linked successor receives the next actor-visible generation, or the
+fixed later fallback is scheduled. Execution legality is always revalidated
+from current authority even when both witness components are unchanged.
+
+Capture replay is a separate identity law. For capture identity `c` and
+canonical capture fingerprint `fc`:
+
+```text
+ledger[c] absent       -> publish capture and retain (fc, outcome)
+ledger[c] = (fc, out)  -> return out without publication
+ledger[c] = (fc', _)   -> reject when fc != fc'
+```
+
+The exact-replay lookup precedes current invocation-state and frontier checks.
+A different capture identity cannot affect an unknown, non-dispatch-pending,
+or terminal invocation.
+
+M4 realizes this authoritative invocation, captured-result, freshness, and
+management protocol without requiring external transport. M5 realizes exact
+restoration and replay from its captured state. M6 supplies authenticated
+product adapters that dispatch already committed projection-safe requests.
+
 ## Authority records
 
 Every authoritative revision transition publishes one outer record:
 
 ```text
 AuthorityRecord :=
-  IngressBatchRecord
-    admitted CapturedInputRecord[]
-    ingress-control delta
-    scheduler delta
+  Admission
+    Commands(IngressBatchRecord)
+      admitted CapturedInputRecord[]
+      ingress-control delta
+      scheduler delta
 
-  | MomentBatchRecord
+    | ActionEvaluation(ActionEvaluationAdmissionRecord)
+      capture identity, fingerprint, and retained outcome
+      invocation transition
+      action-evaluation scheduler insertion
+      capture-ledger and blocker delta
+
+  | Moment(MomentBatchRecord)
     SimMoment
     resulting AdmissionFrontier
     consumed trigger IDs
@@ -373,7 +570,7 @@ AuthorityRecord :=
     scheduler delta
     optional ReactionEnvelope
 
-  | ManagementBatchRecord
+  | Management(ManagementBatchRecord)
     session pause, resume, quarantine, or failure
     invocation cancellation, timeout, or failure
     or admission sealing
@@ -517,11 +714,12 @@ Preconditions:
   `admission_frontier`;
 - compatibility and authorization checks pass.
 
-An accepted input atomically appends an `IngressBatchRecord`, updates typed
-ingress-control and input-deduplication state, and schedules its delivery. An
-exact retained duplicate returns the original result without a second effect.
-Reuse of a retained input ID with another request fingerprint fails closed; a
-retired ID returns `DuplicateExpired`.
+An accepted command input atomically publishes
+`Admission(Commands(IngressBatchRecord))`, updates typed ingress-control and
+input-deduplication state, and schedules its delivery. An exact retained
+duplicate returns the original result without a second effect. Reuse of a
+retained input ID with another request fingerprint fails closed; a retired ID
+returns `DuplicateExpired`.
 
 Capturing an external evaluator result may release a session-blocking frontier,
 but the result cannot influence lifecycle policy until its scheduled delivery
@@ -536,8 +734,14 @@ separate `RunAttemptControl` disposition defined below.
 Transport garbage rejected before admission belongs to operational or security
 logs, not authoritative simulation history.
 
-`submit_controller_request` uses this protocol. `advance` and `drain_until`
-operate at serialized barriers and return the resulting admission frontier.
+`submit_system_command` uses command admission.
+`capture_action_evaluation_result` uses the distinct captured-decision
+admission protocol and identity ledger defined above. A future external input
+family must add its own concrete request, validation, identity, and delivery
+contract rather than enter through a generic payload envelope. Actor action
+selection begins from durable `ActionReady` work and never accepts an
+arbitrary action key or binding set. `advance` and `drain_until` operate at
+serialized barriers and return the resulting admission frontier.
 `Fire` holds the exclusive admission/publication barrier while resolving its
 due moment and seals that moment by advancing the frontier in the same atomic
 publication. If `next(m)` is the least representable `SimMoment` strictly
@@ -702,7 +906,7 @@ RunAttemptControl =
   artifact_retention: AttemptArtifactRetention
   phase:
     Active(reconciled AuthorityCursor)
-    | StepReserved(StepReservation)
+    | StepReserved(StepReservation, owner-local ReservationGrant)
     | Finalized(RunFinalization)
 
 StepReservation =
@@ -821,6 +1025,19 @@ AttemptControlInjectionAnchor =
   | AfterReconciledStep(attempt-local input sequence)
 ```
 
+`AttemptStepId` is the semantic identity of the logical operation.
+`ReservationGrant` is an owner-local authority epoch minted whenever control
+enters `StepReserved`. If reconciliation releases an unpublished reservation
+and the same logical operation is reserved again, the step ID may be equal but
+the grant must differ. Every process capability for completing or failing a
+step is bound to that exact grant, so a capability from the released
+reservation is stale. The grant is control state, not world semantics, and is
+excluded from operation fingerprints, step IDs, receipts, authority records,
+cursors, cumulative history, trajectory identity, the canonical control-state
+digest, and the control event log. Persistence stores the reservation; a
+process keeps its current grant only while a corresponding process capability
+can exist.
+
 `Active` and `StepReserved` require `AttemptOwned` with no handoff intent.
 `HandoffIntent`, `RetainedBy`, and `Discarded` are legal only after
 `Finalized`; artifact retention never changes the selected terminal prefix.
@@ -854,7 +1071,10 @@ or receipt is fed back as input.
 
 ```text
 Admit
-  exact framed request identities/fingerprints and effective-moment intent
+  Command
+    exact framed request identities/fingerprints and effective-moment intent
+  | ActionEvaluationResult
+    exact capture/invocation/request fingerprint and effective-moment intent
 
 Fire
   exact advance/drain request plus the due-moment/trigger selector derived
@@ -1109,10 +1329,11 @@ materialized after hashing.
 needs_dispatch(batch) := reaction_envelope(batch) is nonempty
 ```
 
-Consuming a dispatch is an ordinary `Fire` transition. The pure
+Consuming a dispatch is an ordinary `Fire` transition. The pure, engine-owned
 `PostCommitRouter` maps the envelope to observation deliveries, invalidations,
-and lifecycle-wake proposals. Those proposals require a later authority
-transition. A dispatch-consumption batch creates another dispatch only when it
+and lifecycle-wake proposals. Runtime owns the scheduled dispatch and commits
+the typed proposals through a later authority transition; it never depends on
+context. A dispatch-consumption batch creates another dispatch only when it
 produces a new nonempty reaction envelope; an empty reaction terminates.
 
 ## Agency kernel
@@ -1161,7 +1382,7 @@ ActionOpportunity
   Absent -> Open
   Open -> WaitingForEvaluation
   WaitingForEvaluation -> Open
-  Open | WaitingForEvaluation -> Consumed
+  Open -> Consumed
 ```
 
 Intent adoption schedules activity initialization. The `ActivityController`
@@ -1170,11 +1391,17 @@ tree, a script, or learned state internally.
 
 Opening an action opportunity is an accepted agency/control transition.
 `ActorReadyForAction` is only the scheduler trigger that references the open
-opportunity. Selection, wait, no-applicable-action, reconsideration, or
-abstention or failure consumes it exactly once. `Defer` is nonterminal: it
-moves the opportunity to `WaitingForEvaluation`; completion returns it to
-`Open`, while recorded cancellation, timeout, failure, or exhausted fallback
-closes it. A bounded retry opens a causally linked successor with a new ID.
+opportunity. A ready `Select` or `NoApplicableAction` decision consumes it
+exactly once. An inline policy error follows the declared engine-failure path
+rather than becoming another action choice. A `DeferredCaptured` execution
+binding moves the opportunity to `WaitingForEvaluation`; every completion
+first returns it to `Open`. A result then consumes it, a visible-input change
+opens a linked successor evaluation, and recorded cancellation, timeout,
+failure, or exhausted fallback consumes it through the same checked
+`Open -> Consumed` edge. There is no direct
+`WaitingForEvaluation -> Consumed` transition.
+Waiting, suspension, retry, and reconsideration are later activity or intent
+directives. A bounded retry opens a causally linked successor with a new ID.
 
 Required agency invariants:
 
@@ -1184,6 +1411,9 @@ Required agency invariants:
 - the baseline has at most one open or evaluation-pending action opportunity
   per actor;
 - every opportunity has one explicit sponsor;
+- an activity-sponsored foreground opportunity matches the actor's focused
+  active activity version and the exact action opening represented by its
+  retained method state;
 - process state changes only through runtime authority;
 - activity termination never implicitly terminates a process;
 - activity/process relationships are causal origin and explicit
@@ -1217,12 +1447,14 @@ different runtime acceptance after an attempt, but any actor-visible feedback
 must pass observation and epistemic boundaries before it refines what the
 actor can distinguish.
 
-Global revision, raw `SimMoment`, dependency stamps and `ReadWitness`, raw
-trigger or authority-record IDs, private diagnostics, and private
-candidate-resolution data remain in `InvocationEnvelopeK`; they are not policy
-metadata. Actor-facing IDs and fingerprints derive only from canonical
-actor-visible content or a visibility-stable actor-local generation sponsored
-by an already actor-visible lifecycle record. Thus:
+Global revision, raw `SimMoment`, dependency stamps and
+`LifecycleReadWitnessK` when a retained lifecycle needs them, raw trigger or
+authority-record IDs, private diagnostics, and private candidate-resolution
+data remain in
+`InvocationEnvelopeK`; they are not policy metadata. Actor-facing IDs and
+fingerprints derive only from canonical actor-visible content or a
+visibility-stable actor-local generation sponsored by an already actor-visible
+lifecycle record. Thus:
 
 ```text
 Σ1 ≈actor,role Σ2
@@ -1328,6 +1560,63 @@ validate(D, C) = validate(D, C')
 
 Compiler passes and optimizers may evolve internally. A new source language
 does not change runtime authority. A new semantic primitive does.
+
+## Content, scenario, and root materialization
+
+T0 content is classified by meaning rather than forced into one artifact:
+
+```text
+ReusableT0Declaration
+  --compile/validate--> VerifiedPackArtifact
+  --link-------------> RuntimeDefinitionSet
+
+ScenarioArtifact                     owned by world-lab
+  immutable study planning/provenance
+  checked root-materialization recipe
+  --world-lab materializer--> materialized root candidate
+
+ProductInitialWorldSource            owned by a product composition root
+  product-specific checked root-materialization input
+  --product materializer---> materialized root candidate
+
+RootMaterializationEnvironment =
+  exact RuntimeDefinitionSet
+  exact accepted-state and runtime-control schemas
+  semantic requirements needed to validate starting values and work
+
+verify_root(
+  RootMaterializationEnvironment,
+  materialized root candidate
+) -> VerifiedInitialStateRoot
+```
+
+Reusable pack declarations may describe archetypes or checked instances, but
+do not themselves create authoritative entity identity. `ScenarioArtifact`
+and product source schemas are not runtime mutation protocols or alternative
+definition sets. `VerifiedInitialStateRoot` is the runtime-owned canonical
+boundary: leaf-owned materializers lower their source schemas before invoking
+the runtime-owned root validator, so runtime never depends on `world-lab` or a
+product. The verified root contains only the complete materialized state and
+provenance required to begin the epoch, validated under the exact definitions
+and semantics it references.
+
+For a scenario artifact `q`:
+
+```text
+verify_root(
+  RootMaterializationEnvironment,
+  materialize_scenario(q)
+) = root
+
+execution_identity depends on InitialStateRootId(root)
+study identity may additionally depend on digest(q)
+trajectory identity does not depend on digest(q) independently of root
+```
+
+Thus two descriptive scenario artifacts that materialize the same root and
+execution specification have the same execution identity, while their
+`RunCase` provenance may remain different. Changing a source artifact after
+materialization cannot change an active epoch.
 
 ## Execution and study identity
 

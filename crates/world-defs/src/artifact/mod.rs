@@ -22,7 +22,7 @@ use crate::key::{
 
 pub use codec::CodecError as ArtifactCodecError;
 
-/// MIME type of every W2 pack artifact.
+/// MIME type of every canonical pack artifact.
 pub const ARTIFACT_MEDIA_TYPE: &str = "application/vnd.world.pack+cbor";
 
 /// Schema version of the ArtifactBlobV1 storage representation.
@@ -31,10 +31,10 @@ pub const ARTIFACT_FORMAT_VERSION: u16 = 1;
 /// Schema version of the manifest nested in an artifact.
 const MANIFEST_SCHEMA_VERSION: u16 = 1;
 
-/// Schema version of every W2 action and event family.
+/// Schema version of every encoded action and event family.
 const DEFINITION_FAMILY_SCHEMA_VERSION: u16 = 1;
 
-/// Maximum exact artifact size accepted or emitted by W2.
+/// Maximum exact artifact size accepted or emitted by the artifact protocol.
 pub const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
 /// Maximum direct dependencies declared by one pack.

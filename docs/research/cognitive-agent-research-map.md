@@ -1,5 +1,12 @@
 # Cognitive And Agent Research Map
 
+## Status
+
+Nonnormative domain and evaluation research. Lifecycle ports, authority,
+disclosure, and substitution rules are owned by
+[Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md)
+and [Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md).
+
 ## Purpose
 
 This document maps relevant AI, LLM-agent, multi-agent, and cognitive-science
@@ -29,7 +36,7 @@ partially observable, mixed-motive, socially consequential simulations?
 Related local documents:
 
 - [Social-Strategic Evaluation Program](social-strategic-evaluation-program.md)
-- [Configurable Decision Pipeline](../architecture/configurable-decision-pipeline.md)
+- [Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md)
 - [Epistemic State](../design/epistemic-state.md)
 - [Semantic Appraisal And Motivation](../design/semantic-appraisal-and-motivation.md)
 - [Intent Templates And Planning](../design/intent-templates-and-planning.md)
@@ -954,4 +961,3 @@ and more defensible than claiming a universal agent architecture.
   traces rather than LLM judges?
 - How should oracle conditions be reported so they reveal upper bounds without
   contaminating normal agent evaluation?
-

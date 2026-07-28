@@ -2,11 +2,13 @@
 
 ## Status
 
-Current design draft.
+Partially superseded nonnormative agency design input.
 
 This document defines the target structure for intent templates, candidate
 generation, intent scoring, commitment, activity, and resolution-aware
-lowering. It is not an implementation schema or delivery plan.
+lowering. The normative lifecycle and authority contracts live in
+[Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md);
+this is not an implementation schema or delivery plan.
 
 ## Source Research
 
@@ -14,7 +16,7 @@ lowering. It is not an implementation schema or delivery plan.
 - [Actor Intent And Activity](../ideas/actor-intent-and-activity.md)
 - [Actor Pressure And Interpretation](../ideas/actor-pressure-and-interpretation.md)
 
-## Related Design Owners
+## Related design inputs
 
 - [Simulation Core](simulation-core.md)
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
@@ -55,8 +57,9 @@ Intent:
 Activity:
   ongoing actor-facing execution frame over time.
 
-ActionRequest:
-  concrete actor-owned attempt now.
+Action opportunity and grounded candidate:
+  one accepted opportunity and one actor-visible, actually bindable next
+  attempt selected by ID.
 
 ProcessInstance:
   durable progress/execution frame, especially for abstract resolution.
@@ -1199,7 +1202,7 @@ because:
   current resolution supports concrete tracking
 ```
 
-## Stable Decisions
+## Domain design conclusions
 
 - Intent is the commitment boundary.
 - Activity is the temporal execution boundary.

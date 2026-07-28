@@ -9,8 +9,7 @@ Do not continue this sequence as the active plan. The replacement is
 
 The previous roadmap is archived at
 [Archived RPG Engine Roadmap](archive/implementation-plan-rpg-engine-roadmap.md).
-It remains useful historical context, but this document is the active build
-order.
+Both files remain useful historical context; neither is an active build order.
 
 ## Direction
 

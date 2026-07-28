@@ -231,7 +231,6 @@ world-core/src/
   identity.rs        truly cross-plane entity and actor identity
   time.rs            SimTime, Microstep, SimMoment, exact duration
   revision.rs        checked revision and sequence scalars
-  dependency.rs      dependency keys and ReadWitness primitives
   provenance.rs
   diagnostic.rs
   budget.rs          checked deterministic budget scalars
@@ -240,6 +239,13 @@ world-core/src/
 It is not a shared-utility bin. Definition, attempt, authority, lifecycle, and
 study IDs remain beside their owning concepts unless multiple lower packages
 genuinely require them.
+
+M4's concrete `ActionReadWitness` remains beside action projection in
+`world-context`. A shared dependency-key or witness primitive is introduced
+only after a second lower-package protocol proves the same abstraction.
+Runtime's separate `PreparationReadEvidence` is private same-step transaction
+evidence in `world-runtime`; it is neither a context witness nor a reusable
+cross-crate abstraction.
 
 ### `world-defs`
 
@@ -285,7 +291,6 @@ world-model/src/
     intent.rs
     activity.rs
     action_opportunity.rs
-    evaluator_invocation.rs
     process.rs
     reservation.rs
     resolution.rs
@@ -312,12 +317,19 @@ and typed semantic deltas. It contains no:
 `WorldSnapshot` is immutable and safe to clone. Constructing a fixture
 snapshot does not create an authoritative session.
 
+`ActionOpportunity` and its checked `Open | WaitingForEvaluation | Consumed`
+transitions are model protocol. The retained invocation, artifact bounds,
+capture ledger, blocker, fallback, and scheduler integration are runtime
+control and therefore live in `world-runtime/action_evaluation.rs`; there is no
+generic model-level evaluator-invocation aggregate.
+
 ### `world-runtime`
 
 ```text
 world-runtime/src/
   lib.rs
   service.rs
+  action_evaluation.rs
   execution/
     config.rs
     lifecycle_profile.rs
@@ -418,9 +430,12 @@ ContextProjector::build_activity(...)
 ContextProjector::build_action(...)
 ```
 
-Each result distinguishes valid empty output from unavailable input and
-carries an engine-private dependency witness. Actor-safe payloads never carry
-the witness, global revision, or private candidate-resolution table.
+Projectors backed only by total checked inputs may return a complete build
+directly. The first genuinely partial provider introduces the shared typed
+complete-versus-unavailable result and an engine-private dependency witness.
+Actor-safe payloads never carry the witness, global revision, or private
+candidate-resolution table. No milestone introduces a partial-provider result
+solely to satisfy a synthetic failure test.
 
 ### `world-decision`
 
@@ -439,12 +454,11 @@ world-decision/src/
   external/
 ```
 
-The stable production ports are:
+The current stable production ports are:
 
 ```text
 EvidenceAssimilator
 AppraisalEvaluator
-SocialInterpretationEvaluator
 IntentPolicy
 ActivityController
 ActionPolicy
@@ -454,6 +468,14 @@ Each port has a concrete input and result enum. The current cross-lifecycle
 pass/profile/representation runner is not part of this package after the
 rewrite. If a future experiment needs a pass graph, it is implemented anew as
 one evaluator behind one of these ports.
+
+`SocialInterpretationEvaluator` is a future optional target port. M4 keeps its
+profile position explicitly disabled and does not retain an unused production
+trait before a concrete social semantic slice exists. When introduced, it
+returns only an `ActorSocialInterpretationProposal`. The social gate's broader
+`SocialTransitionProposal` also admits separately typed intersubjective-claim
+and institutional-fact transitions, but the interpretation evaluator cannot
+construct those variants.
 
 ### `world-authoring`
 
@@ -560,7 +582,12 @@ world-conformance/
 
 `world-standard` is pure definition vocabulary. Trusted executable semantics
 remain in `world-standard-runtime`. `world-cli` is the first composition root.
-`world-lab` and `world-conformance` are leaves.
+`world-lab` and `world-conformance` are leaves. `world-lab` owns the immutable
+`ScenarioArtifact` schema used for study planning and provenance. A game
+product may own a different initial-world source schema in its composition
+root. Each leaf lowers its own source into the runtime-owned root-construction
+input and invokes the checked `InitialStateRoot` builder; runtime never imports
+either source schema, and neither becomes a runtime or pack API.
 
 ## Top-level type ownership
 
@@ -569,6 +596,8 @@ remain in `world-standard-runtime`. `world-cli` is the first composition root.
 | `DefinitionKey`, checked family IR | `world-defs` | checked definition builders/compiler |
 | `VerifiedPackArtifact` | `world-defs` | compiler-produced or decoded `ArtifactData` passing the same defs-owned validator |
 | `RuntimeDefinitionSet` | `world-defs` | exact linker |
+| reusable T0 pack declarations | `world-defs` / source pack | checked compiler and pack validator |
+| `ScenarioArtifact` | `world-lab` | immutable scenario generator and validator |
 | accepted state and lifecycle protocol records | `world-model` | checked value constructors; acceptance remains runtime-owned |
 | `WorldSnapshot` and query views | `world-model` | immutable projection of a runtime head or fixture |
 | execution config, manifest, spec, initial root | `world-runtime` | canonical builders plus load-time validation |
@@ -681,8 +710,9 @@ Receipts and disposition values are retained exactly as required by
 reconciliation and declared verification. They do not enter world semantics or
 trajectory identity.
 
-Within that plane, durable attempt control is encoded as algebraic state rather
-than a collection of loosely related booleans and optional fields:
+Within that plane, durable attempt control is encoded as two orthogonal
+algebraic state axes rather than a collection of loosely related booleans and
+optional fields:
 
 ```rust
 pub struct RunAttemptControl {
@@ -691,26 +721,17 @@ pub struct RunAttemptControl {
     creation_fingerprint: AttemptCreationFingerprint,
     dedup: AttemptControlDedupState,
     trace_head: ControlTransitionEventHash,
-    state: AttemptControlState,
+    artifact_retention: AttemptArtifactRetention,
+    phase: AttemptPhase,
 }
 
-pub enum AttemptControlState {
-    Live {
-        closure: AttemptOwnedClosure,
-        gate: LiveAttemptGate,
-    },
-    Finalized {
-        finalization: RunFinalization,
-        retention: FinalizedRetention,
-    },
-}
-
-pub enum LiveAttemptGate {
+pub enum AttemptPhase {
     Active { cursor: AuthorityCursor },
     Reserved { reservation: StepReservation },
+    Finalized { finalization: RunFinalization },
 }
 
-pub enum FinalizedRetention {
+pub enum AttemptArtifactRetention {
     AttemptOwned {
         closure: AttemptOwnedClosure,
         handoff: Option<HandoffIntent>,
@@ -739,11 +760,15 @@ pub struct HandoffIntent {
 ```
 
 The durable repository still verifies every transition with compare-and-set.
-The enum prevents impossible in-memory combinations; it does not replace the
-durable protocol. Handoff records intent while source pins remain, acquires the
-target pins under `transfer`, compare-and-sets to `RetainedBy`, and only then
-releases source pins. Discard installs its permanent descriptor/fingerprint
-tombstone before releasing former pins.
+Phase and artifact retention are separate axes because finalization selects a
+terminal semantic prefix but does not itself transfer or discard artifacts.
+Private constructors and compare-and-set transitions enforce the legal product:
+`Active` and `Reserved` require attempt ownership with no handoff, while a
+handoff, `RetainedBy`, or `Discarded` state requires `Finalized`. Handoff
+records intent while source pins remain, acquires the target pins under
+`transfer`, compare-and-sets to `RetainedBy`, and only then releases source
+pins. Discard installs its permanent descriptor/fingerprint tombstone before
+releasing former pins.
 
 ### Controlled attempt `Ω = (Ca, Σ)`
 
@@ -794,9 +819,14 @@ pub struct AuthorityRecord {
 }
 
 pub enum AuthorityRecordBody {
-    Ingress(IngressBatchRecord),
+    Admission(AuthorityAdmissionRecord),
     Moment(MomentBatchRecord),
     Management(ManagementBatchRecord),
+}
+
+pub enum AuthorityAdmissionRecord {
+    Commands(IngressBatchRecord),
+    ActionEvaluation(ActionEvaluationAdmissionRecord),
 }
 ```
 
@@ -852,7 +882,7 @@ pub struct DeliveryArchiveFence {
 }
 
 pub struct PreparedFire {
-    // private process-local token bound to one durable StepReservation
+    // private process-local token bound to one StepReservation grant
     // no Clone, no Serialize, no Deserialize
 }
 
@@ -1002,11 +1032,16 @@ its lifecycle coordinator and returns a closed, bounded
 repository, mutable state, record builder, scheduler handle, or
 user-extensible mutation operation.
 
-Runtime consumes the exact non-cloneable `PreparedFire`, verifies its durable
-reservation and proposal bounds, revalidates semantics, resolves conflicts,
-and seals the one moment record. Dropping or losing `PreparedFire` performs no
-fallible cleanup; the durable reservation remains and same-domain recovery
-reconciles or explicitly disposes it.
+Runtime consumes the exact non-cloneable `PreparedFire`, verifies the current
+durable reservation, its owner-local grant, and proposal bounds, revalidates
+semantics, resolves conflicts, and seals the one moment record.
+`AttemptStepId` remains the semantic operation identity; the private grant
+distinguishes successive reservations of that operation. If recovery releases
+an unpublished reservation and a later retry re-creates the same step, the
+new grant makes any surviving token for the old reservation unusable without
+changing a receipt, record, cursor, or trajectory identity. Dropping or losing
+`PreparedFire` performs no fallible cleanup; the durable reservation remains
+and same-domain recovery reconciles or explicitly disposes it.
 
 `fail_prepared_fire` is the explicit non-publication path when lifecycle
 coordination, a declared external evaluator, or engine infrastructure fails
@@ -1191,7 +1226,14 @@ impl Engine {
 `EngineBuilder` configures installed infrastructure and trusted
 implementations. Behavior-affecting simulation configuration never hides in
 the builder; it is resolved from exact execution artifacts into
-`ResolvedExecution`. If reliable delivery is installed, `build` binds its
+`ResolvedExecution`. The builder may install synchronous controller
+implementations as distribution capabilities, but `LifecycleProfiles` selects
+the exact behavior-affecting binding before activation. That binding enters
+the `SemanticImplementationSet` and execution manifest, and
+`ResolvedExecution` seals it together with the other `Γ` components. Its
+resulting disposition or command also enters authority history. Durable
+external invocation later replaces the in-process callback with an explicit
+captured-input protocol. If reliable delivery is installed, `build` binds its
 service to one runtime-minted `RuntimeDeliveryRetention` capability and keeps
 that capability inside the engine's private delivery coordinator; it is not
 recoverable from the public `Engine` facade.
@@ -1216,20 +1258,19 @@ impl RunAttempt {
     pub fn status(&self) -> Result<RunAttemptStatus, AttemptError>;
     pub fn session(&self) -> WorldSession;
 
-    pub fn submit_controller_request(
+    pub fn submit_system_command(
         &mut self,
-        request: ControllerRequest,
-    ) -> Result<ControllerAdmissionOutcome, AttemptError>;
+        request: SystemCommandRequest,
+    ) -> Result<SystemCommandAdmissionOutcome, AttemptError>;
 
-    pub fn submit_external_input(
-        &mut self,
-        request: ExternalInputRequest,
-    ) -> Result<InputAdmissionOutcome, AttemptError>;
+    pub fn pending_action_evaluations(
+        &self,
+    ) -> Result<Vec<PendingActionEvaluation>, AttemptError>;
 
-    pub fn submit_evaluator_result(
+    pub fn capture_action_evaluation_result(
         &mut self,
-        request: EvaluatorResultRequest,
-    ) -> Result<EvaluatorAdmissionOutcome, AttemptError>;
+        capture: ActionEvaluationResultCapture,
+    ) -> Result<ActionEvaluationCaptureOutcome, ActionEvaluationCaptureError>;
 
     pub fn submit_management_request(
         &mut self,
@@ -1252,6 +1293,14 @@ impl RunAttempt {
     ) -> Result<CancelAttemptOutcome, AttemptError>;
 }
 ```
+
+`RunAttempt` is a trusted host capability. Actor controllers are bound to the
+resolved execution and receive only actor-safe payloads when `advance`
+encounters `ActionReady`; they are not handed the attempt, session inspector,
+system ingress, cancellation, or management surfaces. M4 adds the authoritative
+deferred-decision and captured-result protocol. M5 makes its captured state
+restorable and replayable. M6 adds authenticated adapter sessions and
+CLI/MCP/player/AI transport. None adds a per-advance controller override.
 
 Ingress families remain separate because their identity, validation,
 deduplication, and outcome rules differ. The public API never accepts a raw
@@ -1439,43 +1488,57 @@ pub trait ActivityController: Send + Sync {
 }
 
 pub trait ActionPolicy: Send + Sync {
-    fn evaluate(
+    fn semantics_id(&self) -> ActionPolicySemanticsId;
+
+    fn decide(
         &self,
-        semantics: &ActionSemantics,
-        input: &ActionPolicyPayload,
-    ) -> ActionEvaluation;
+        input: &ActionContextPayload,
+    ) -> Result<ActionDecision, ActionPolicyError>;
 }
 
-pub enum ActionEvaluation {
-    Select(GroundedActionCandidateId),
-    NoApplicableAction(NoApplicableActionDisposition),
-    Wait(ActionWaitProposal),
-    ReconsiderIntent(IntentReconsiderationProposal),
-    Defer(ActionExternalInvocationProposal),
-    Abstain(ActionAbstention),
-    Fail(ActionPolicyDiagnostic),
+pub enum ActionDecision {
+    Select {
+        candidate: GroundedActionCandidateId,
+        input: ActionInputFingerprint,
+    },
+    NoApplicableAction {
+        input: ActionInputFingerprint,
+    },
 }
 ```
 
-`NoApplicableAction` is a successful modeled evaluation for a valid empty or
-budget-limited candidate set. It carries candidate coverage plus the declared
-`ReturnToActivity`, `ReconsiderIntent`, or `WaitUntil` disposition; it is not
-an abstention or failure.
+`ActionDecision` remains the semantic waist. The installed action execution
+class is independently closed as `InlineDeterministic | DeferredCaptured`.
+Inline execution calls the policy directly. Deferred execution commits the
+same actor-safe request and later captures the canonical encoding of the same
+`ActionDecision`; deferral is therefore not an action-policy result variant.
+A selection still carries only a supplied candidate ID and the exact input
+fingerprint; `NoApplicableAction` remains a successful modeled decision.
+Policy errors are trusted coordination failures, while cancellation, timeout,
+reinvocation, and fallback belong to runtime invocation control. Waiting,
+suspension, bounded retry, and intent reconsideration remain activity or
+intent directives after the neutral wake.
+
+Candidate coverage remains part of the exact policy payload and trace.
+`NoApplicableAction` is not an abstention or failure.
 
 The trusted coordinator retains a private invocation envelope:
 
 ```rust
-struct ActionInvocationEnvelope {
+struct RetainedActionInvocationEnvelope {
     authority: PrivateAuthorityBinding,
-    witness: ReadWitness,
+    witness: ActionReadWitness,
     candidate_resolution: PrivateCandidateTable,
-    payload: ActionPolicyPayload,
+    payload: ActionContextPayload,
 }
 ```
 
 Only `payload` crosses the evaluator boundary. The evaluator can select only a
 supplied actor-safe ID. The coordinator resolves that ID through the private
-table, lowers it to a command, and submits it to runtime revalidation.
+table, lowers it to a command, and submits it to runtime revalidation. This
+retained witness-bearing form begins with M4. Inline evaluation remains
+stack-local, bound to its prepared snapshot and expected versions, and needs no
+`ActionReadWitness`.
 
 Persistent implementation-specific evaluator state is allowed only as a
 bounded, canonical, versioned sealed value tied to one port, semantic
@@ -1621,6 +1684,15 @@ Build:
 - `Engine`, `RunAttempt`, read-only `WorldSession`, and one inspector query;
 - one standard definition and trusted primitive exercised end to end.
 
+The M1 runtime deliberately projects the scheduler to at most one
+`ScheduledWork` globally at an exact `SimMoment`. Its `Fire` path reserves
+command work only. If the globally least work is post-commit dispatch, the
+runtime reports a typed routing-required result without reserving, consuming,
+rescheduling, or skipping that work. M2 replaces this restriction with the
+target whole-moment, all-lanes preparation and engine-owned post-commit
+routing. Runtime owns the scheduled dispatch and commits the router's typed
+proposals through the same authority waist; runtime never depends on context.
+
 Delete in the same cut:
 
 - `DefinitionRegistry` and durable session-local numeric definition IDs;
@@ -1650,11 +1722,13 @@ Exit gates:
 
 Generalize only machinery already exercised by the slice:
 
-- complete ingress, moment, and management record families;
+- complete admission, moment, and management record families;
 - typed deduplication ledgers and permanent retirement frontiers;
 - same-moment preparation, footprints, total conflict resolution, and
   rejection-only fallback;
-- process, reservation, reaction, and lifecycle-control protocols;
+- the exercised reaction, scheduling, reservation, and management-control
+  substrate; M3 adds the first action-opportunity protocol and M4 adds the
+  remaining cognition and agency lifecycle protocols;
 - attempt reservation, receipt, recovery reconciliation, termination, and
   finalization;
 - deterministic budgets and keyed randomness;
@@ -1667,12 +1741,14 @@ There is still only one authority implementation.
 Reintroduce `world-context` and `world-decision` directly in their target
 forms:
 
-- lifecycle-specific projections;
-- explicit valid-empty versus unavailable results;
-- private invocation envelopes and actor-safe payloads;
+- one concrete bounded containment-transfer projection; other lifecycle
+  projections remain absent until M4;
+- successful complete-empty projection without a synthetic unavailable source;
+- stack-local actor-safe payloads and private resolution tables;
 - grounded action candidates and private lowering tables;
 - one-shot `ActionOpportunity`;
 - a complete deterministic baseline `ActionPolicy`;
+- one controller binding per resolved execution;
 - neutral attempt-resolution wake behavior.
 
 No old context aggregate or cross-lifecycle runner is wrapped. Existing
@@ -1685,16 +1761,24 @@ Add independently scheduled:
 
 - evidence assimilation;
 - appraisal;
-- optional social interpretation;
 - intent reconsideration;
 - activity initialization and advancement;
-- action selection.
 
-Add persistent `Intent`, `Activity`, `ActionOpportunity`, pending invocation,
-and `ProcessInstance` protocols with explicit state machines. Complete the
-rule-based baseline before adding optional evaluators.
+Keep the social-lifecycle profile position explicitly disabled. M4 adds no
+unused `SocialInterpretationEvaluator` trait or social transition path; M8
+introduces both with the first concrete social composition scenario.
 
-### M5-M7: durable execution and product leaves
+Add persistent `Intent`, `Activity`, pending invocation, and `ProcessInstance`
+protocols with explicit state machines. Activity becomes a new sponsor and
+continuation source for the M3 `ActionOpportunity` and action-selection
+protocol; M4 does not add a second action path or redefine its authority.
+Complete the enabled rule-based baselines before adding optional evaluators.
+The first retained action-evaluation protocol supplies positive witnesses,
+captured result ingress, freshness, rebind/discard, cancellation, and fallback
+without requiring product transport. A complete-versus-unavailable projection
+result waits for a genuine partial provider.
+
+### M5-M8: durable execution, product leaves, and composition proof
 
 Add in the roadmap-owned milestone order. Physical dependency order remains:
 
@@ -1703,9 +1787,19 @@ Add in the roadmap-owned milestone order. Physical dependency order remains:
 - explicit child-epoch branch and migration;
 - artifact retention and portable read-only archives;
 - `world-lab`;
-- `world-cli`;
+- `world-cli` plus authenticated CLI/MCP/player/AI evaluator adapters and
+  AI-assisted authoring through the ordinary compiler, preview, and child-epoch
+  boundary;
 - background resolution;
-- optional evaluator implementations only when demanded by scenarios.
+- optional evaluator implementations only when demanded by scenarios;
+- an M8 gameplay-composition proof that exercises existing-vocabulary T0/T1
+  extension, cross-primitive contention and combined invariants, a
+  physical-to-epistemic-to-social-to-agency causal chain, and one new T3
+  primitive through owner-local code and composition-root wiring.
+
+M8 does not add another authority path or generic subsystem framework. It is
+the evidence gate for stabilizing gameplay-facing primitive, state-owner,
+derivation, and composition APIs.
 
 ## Deletion gates
 
@@ -1767,7 +1861,17 @@ Additional gates arrive with their owner:
   persistence;
 - restoration that invokes no evaluator or external service;
 - portable archives that cannot acquire writable attempt authority;
-- experiment repeatability and capture sufficiency with `world-lab`.
+- experiment repeatability and capture sufficiency with `world-lab`;
+- cross-primitive same-moment conflict and combined-invariant evidence;
+- an existing-vocabulary T0/T1 mechanic added without authority-kernel edits;
+- a new T3 primitive added through owner-local code and composition wiring
+  without changing unrelated public APIs;
+- a physical-to-observation-to-epistemic-to-social-to-agency scenario with no
+  direct system-to-system mutation chain.
+
+Gameplay-facing primitive, state-owner, derivation, and composition APIs remain
+concrete and evolvable until those composition gates pass. The already-proven
+authority waist and package dependency direction do not wait for that evidence.
 
 Implementation completion means refinement to the formal model, not merely
 that an example executes.

@@ -2,8 +2,15 @@
 members = [
     "crates/world-core",
     "crates/world-defs",
+    "crates/world-model",
+    "crates/world-context",
+    "crates/world-decision",
+    "crates/world-runtime",
     "crates/world-authoring",
     "crates/world-standard",
+    "crates/world-standard-runtime",
+    "crates/world-engine",
+    "crates/world-conformance",
 ]
 resolver = "3"
 

@@ -2,7 +2,14 @@
 
 ## Status
 
-Current design draft.
+Partially superseded vocabulary input.
+
+The primitive examples remain useful. The `CausalTransaction`, universal
+effect-program, and runtime-dispatch shapes below are not current contracts.
+Owner-specific preparation, extension tiers, and family-specific IR are
+defined by
+[Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md)
+and the normative runtime model.
 
 ## Source Ideas
 
@@ -395,7 +402,7 @@ story-specific lockpick resolver.
 - [Truth, Authority, And Layer Boundaries](truth-authority-and-layer-boundaries.md)
   defines forbidden semantic mutations.
 
-## Stable Decisions
+## Reusable vocabulary conclusions
 
 - `ActionRequest` remains the attempted-change interface.
 - Actions lower into `Typed Effect Program`s.

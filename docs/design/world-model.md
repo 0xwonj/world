@@ -2,7 +2,13 @@
 
 ## Status
 
-Current design draft
+Partially superseded domain-model input.
+
+The entity, relation, spatial, and query ideas remain candidate domain
+structures. Accepted partitions, mutation authority, snapshot contracts, and
+crate ownership are defined by the
+[Formal Model](../architecture/target-architecture/formal-model.md) and
+[System Architecture](../architecture/target-architecture/system-architecture.md).
 
 ## Source Research
 
@@ -10,7 +16,7 @@ Current design draft
 - [Causal Runtime / Action-Effect-Event](../research/causal-runtime-action-effect-event.md)
 - [Epistemic State](epistemic-state.md)
 
-## Related Design Owners
+## Related design inputs
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
 - [Simulation Transition Compiler](simulation-transition-compiler.md)
@@ -24,29 +30,21 @@ Current design draft
 
 ## Purpose
 
-The world model defines what counts as authoritative gameplay state, how that
-state is organized, and which read surfaces can expose it.
+This document explores candidate shapes for authoritative gameplay state and
+read surfaces. The normative package defines what actually counts as accepted
+state and which owner may change it.
 
-It does not define the meaning of every record family, and it does not grant
-mutation authority by itself. The world model supplies store families, query
-contracts, indexes, and provenance surfaces. Each truth layer still mutates
-only through its own commit surface:
+It grants no mutation authority by itself. Concrete state partitions change
+only through their owner-specific prepared transition and the runtime's single
+atomic publication capability. Query contracts, indexes, and provenance views
+are read models, not alternate stores of truth.
 
-- hard truth through [Causal Runtime](causal-runtime.md)
-- social and institutional soft truth through
-  [Social Institutional Model](social-institutional-model.md)
-- holder-relative actor truth through [Epistemic State](epistemic-state.md)
-- appraisal and motivation records through
-  [Semantic Appraisal And Motivation](semantic-appraisal-and-motivation.md)
-
-The world model is reusable substrate. Game-system packs may define concrete
-record families, content schemas, and derived views, but they must register
-through typed storage/query contracts and must not gain direct mutation
-authority over the underlying stores.
-
-[Simulation Transition Compiler](simulation-transition-compiler.md) depends on
-the world model for query inputs, derived-view plumbing, provenance, and
-invalidation boundaries. It does not turn derived views into hidden truth.
+The world model is reusable substrate. Game-system packs may define checked
+content and definitions. A new accepted-state primitive remains a T3
+extension with a concrete owner, typed query/proposal/gate contract, codecs,
+and migration policy; pack data alone never creates a state owner. Derived
+views remain pure and reconstructible unless a named accepted state owner
+explicitly persists their semantic result.
 
 ## Core Principle
 

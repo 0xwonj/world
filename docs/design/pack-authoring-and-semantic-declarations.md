@@ -2,11 +2,14 @@
 
 ## Status
 
-Current design draft.
+Frozen pre-target authoring design.
 
-This document defines the pack authoring, semantic declaration, and
-verification boundary. It is not a final source syntax, parser design, package
-manager, editor format, or implementation plan.
+The examples below remain useful domain input, but the proposed two-family
+`Typed Effect Program` / `Semantic Declaration IR` architecture is superseded.
+The current contract uses tiered extension authority and family-specific
+definitions, verifiers, limits, and interpreters as defined by
+[Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md).
+This document is not a source syntax, package, or runtime contract.
 
 ## Related Design Owners
 
@@ -48,7 +51,7 @@ How are semantic declarations used by different runtime pipeline stages?
 What must the verifier reject before a pack can run?
 ```
 
-## Core Decision
+## Historical core decision
 
 Use two top-level IR families with replaceable authoring frontends:
 
@@ -743,11 +746,11 @@ ProcessDefinitionIR
 ```
 
 Process source authoring may later use a text DSL, structured data, or an
-editor format. The stable early decision is that process definitions compile
+editor format. The historical decision was that process definitions compile
 to checked IR and execute through `ProcessRuntime`, `ProcessTick`, and
 `CausalRuntime`.
 
-## Stable Decisions
+## Historical decisions
 
 - `Typed Effect Program` is a separate hard-mutation IR family with
   replaceable authoring frontends.

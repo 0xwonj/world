@@ -2,7 +2,23 @@
 
 ## Status
 
-Current design draft.
+Reconciled nonnormative capability and affordance input.
+
+The capability/repertoire/affordance distinctions remain design inputs. The
+broad `AgentTurnInput`, direct `ActionRequest`, and structured
+`InvalidActionFeedback` examples below are superseded at the production
+boundary by the normative target architecture. M3 supplies one
+lifecycle-specific actor-safe payload and a bounded grounded-candidate set;
+human, rule, script, and external controllers may select only a supplied
+candidate ID. Definition keys, authoritative bindings, raw attempt outcomes,
+freshness witnesses, and runtime commands remain private. Later observable
+failure information enters through the M4 observation and evidence
+lifecycles, not through direct runtime feedback.
+
+See
+[Cognition and Agency](../architecture/target-architecture/cognition-and-agency.md)
+and the
+[M3 plan](../implementation/target-rewrite/milestone-03-grounded-action.md).
 
 ## Source Ideas
 
@@ -11,10 +27,11 @@ Current design draft.
 - [Epistemic State / Agent Memory](../research/epistemic-state-and-agent-memory.md)
 - [Engine Architecture Research Entry](../research/engine-architecture-entry.md)
 
-## Related Design Owners
+## Normative routing
 
+- [Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md)
+- [Extensibility And Research](../architecture/target-architecture/extensibility-and-research.md)
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
-- [Simulation Transition Compiler](simulation-transition-compiler.md)
 
 ## Purpose
 
@@ -393,7 +410,7 @@ bespoke action list.
 - [Intent Templates And Planning](intent-templates-and-planning.md) will later
   choose among possible intents and action requests.
 
-## Stable Decisions
+## Domain design conclusions
 
 - Action space is actor-owned.
 - Perception capability is actor-owned.

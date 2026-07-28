@@ -1,87 +1,46 @@
 # world
 
-Working repository for a simulation-first RPG world.
+Working repository for a simulation-first RPG engine.
 
-The goal is a headless, turn-based 2D grid world simulation that can support
-multiple clients: terminal, web, native UI, automated tests, and AI agents.
-The frontend is not the source of truth. The simulation core is.
+The goal is a headless, turn-based world simulation with bounded local
+two-dimensional square grids and a regional topology. It can support multiple
+clients: terminal, web, native UI, automated tests, and AI agents. The
+frontend is not the source of truth. The simulation core is.
 
 ## Direction
 
-- 2D grid-based, turn-based RPG world.
+- Turn-based RPG play over local square grids and a regional world topology.
 - Simulation depth matters more than graphics.
 - Human players and AI agents should use the same action interface.
 - Entities perceive only what their senses, knowledge, memory, and position
   allow them to perceive.
-- World changes should flow through explicit actions, validation, events, and
-  state updates.
+- World changes flow through typed admission or scheduled work, verified atomic
+  authority transitions, domain events, and explicit later causal work.
 - Content should be system-driven: materials, body parts, factions, knowledge,
   environment, tools, rituals, mutations, and social relationships should
   combine into emergent behavior.
 
 ## Docs
 
-- [Vision](docs/vision.md)
-- Current architecture and execution
-  - [Normative Target Architecture](docs/architecture/target-architecture/README.md)
-  - [Formal System Model](docs/architecture/target-architecture/formal-model.md)
-  - [Target Rust Code Architecture](docs/architecture/target-architecture/code-architecture.md)
-  - [Execution Roadmap](docs/architecture/target-architecture/implementation-roadmap.md)
-  - [Active Rewrite Status](docs/implementation/target-rewrite/README.md)
-- Earlier architecture inputs (non-normative)
-  - [Architecture README](docs/architecture/README.md)
-  - [Architecture Roadmap](docs/architecture/roadmap.md)
-  - [Architecture Decisions](docs/architecture/ADR.md)
-  - [Engine Architecture](docs/architecture/engine.md)
-  - [Runtime Pipeline Architecture](docs/architecture/runtime-pipeline.md)
-  - [Crate Boundary Architecture](docs/architecture/crates.md)
-  - [Project Conventions](docs/architecture/project-conventions.md)
-  - [Implementation Plan](docs/architecture/implementation-plan.md)
-- Design
-  - [Simulation Core](docs/design/simulation-core.md)
-  - [Engine Core And Game System Boundary](docs/design/engine-core-and-game-system-boundary.md)
-  - [Pack Authoring And Semantic Declarations](docs/design/pack-authoring-and-semantic-declarations.md)
-  - [Simulation Transition Compiler](docs/design/simulation-transition-compiler.md)
-  - [Truth, Authority, And Layer Boundaries](docs/design/truth-authority-and-layer-boundaries.md)
-  - [World Model](docs/design/world-model.md)
-  - [Physical Simulation Grammar](docs/design/physical-simulation-grammar.md)
-  - [Typed Effect Primitives](docs/design/typed-effect-primitives.md)
-  - [Standard World Library And Primitive Semantics](docs/design/standard-world-library.md)
-  - [Causal Runtime](docs/design/causal-runtime.md)
-  - [Action And Event Model](docs/design/action-event-model.md) terminology sketch
-  - [Time Model](docs/design/time-model.md)
-  - [Capability, Affordance, And Actor Interface](docs/design/capability-affordance-and-actor-interface.md)
-  - [Perception And Observation](docs/design/perception-and-observation.md)
-  - [Epistemic State](docs/design/epistemic-state.md)
-  - [Social Institutional Model](docs/design/social-institutional-model.md)
-  - [Semantic Appraisal And Motivation](docs/design/semantic-appraisal-and-motivation.md)
-  - [Intent Templates And Planning](docs/design/intent-templates-and-planning.md)
-  - [Multi-Resolution Simulation](docs/design/multi-resolution-simulation.md)
-- Research
-  - [Engine Architecture Research Entry](docs/research/engine-architecture-entry.md)
-  - [Implementation Architecture And Library Survey](docs/research/implementation-architecture-and-library-survey.md)
-  - [Causal Runtime / Action-Effect-Event](docs/research/causal-runtime-action-effect-event.md)
-  - [World Representation / Query Model](docs/research/world-representation-query-model.md)
-  - [Time Model / Turn Scheduling](docs/research/time-model-and-turn-scheduling.md)
-  - [Epistemic State / Agent Memory](docs/research/epistemic-state-and-agent-memory.md)
-  - [Semantic Appraisal, Intent, Activity, And Planning](docs/research/semantic-appraisal-intent-activity-planning.md)
-  - [Reference Research Questions](docs/research/reference-questions.md)
-- References
-  - [Caves of Qud](docs/references/caves-of-qud.md)
-  - [RimWorld](docs/references/rimworld.md)
-  - [Cataclysm: Dark Days Ahead](docs/references/cataclysm-dda.md)
-- Ideas
-  - [Design Ideas](docs/ideas/README.md)
-  - [Capability-Derived Actions](docs/ideas/capability-derived-actions.md)
-  - [Knowledge, History, And Belief](docs/ideas/knowledge-history-and-belief.md)
-  - [Kernel Primitives](docs/ideas/kernel-primitives.md)
-  - [Typed Action Effects](docs/ideas/typed-action-effects.md)
-  - [Actor Intent And Activity](docs/ideas/actor-intent-and-activity.md)
-  - [Actor Pressure And Interpretation](docs/ideas/actor-pressure-and-interpretation.md)
-  - [Layered Truth And AI Co-Authority](docs/ideas/layered-truth-and-ai-coauthority.md)
-  - [Multi-Resolution Simulation](docs/ideas/multi-resolution-simulation.md)
-  - [Semantic Kernel And PL Boundary](docs/ideas/semantic-kernel-and-pl-boundary.md)
-- Brainstorming
-  - [Content Systems](docs/brainstorming/content-systems.md)
-  - [Agent Interface](docs/brainstorming/agent-interface.md)
-  - [World Simulation](docs/brainstorming/world-simulation.md)
+Start with the [Documentation Guide](docs/README.md). It identifies the role
+and authority of every documentation layer.
+
+- [Vision](docs/vision.md) and
+  [Reference Game Vision](docs/design/reference-game-vision.md) define product
+  direction and the gameplay pressure the architecture must survive.
+- [Target Architecture](docs/architecture/target-architecture/README.md) is the
+  only normative cross-system architecture.
+- [Execution Roadmap](docs/architecture/target-architecture/implementation-roadmap.md)
+  maps required capabilities to milestones and validation evidence.
+- [Rewrite Status](docs/implementation/target-rewrite/README.md) records
+  completed milestones and whether a detailed milestone plan is currently
+  active.
+- [Design Index](docs/design/README.md) classifies current, partially
+  superseded, and frozen design inputs.
+- [Research Index](docs/research/README.md) separates accepted dispositions
+  from evidence and open hypotheses.
+
+M1 through M7 build and operationalize the engine foundation. The target
+roadmap is architecture-complete only after the M8 gameplay-composition suite
+has demonstrated cross-system depth without adding a second authority path or
+a speculative universal framework.

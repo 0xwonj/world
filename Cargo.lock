@@ -92,10 +92,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "world-conformance"
+version = "0.0.0"
+dependencies = [
+ "world-authoring",
+ "world-engine",
+ "world-standard",
+ "world-standard-runtime",
+]
+
+[[package]]
+name = "world-context"
+version = "0.0.0"
+dependencies = [
+ "minicbor",
+ "world-core",
+ "world-defs",
+ "world-model",
+]
+
+[[package]]
 name = "world-core"
 version = "0.0.0"
 dependencies = [
  "blake3",
+]
+
+[[package]]
+name = "world-decision"
+version = "0.0.0"
+dependencies = [
+ "minicbor",
+ "world-context",
+ "world-core",
+ "world-model",
 ]
 
 [[package]]
@@ -107,8 +137,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "world-engine"
+version = "0.0.0"
+dependencies = [
+ "world-context",
+ "world-core",
+ "world-decision",
+ "world-defs",
+ "world-model",
+ "world-runtime",
+]
+
+[[package]]
+name = "world-model"
+version = "0.0.0"
+dependencies = [
+ "world-core",
+ "world-defs",
+]
+
+[[package]]
+name = "world-runtime"
+version = "0.0.0"
+dependencies = [
+ "blake3",
+ "world-core",
+ "world-defs",
+ "world-model",
+]
+
+[[package]]
 name = "world-standard"
 version = "0.0.0"
 dependencies = [
  "world-defs",
+]
+
+[[package]]
+name = "world-standard-runtime"
+version = "0.0.0"
+dependencies = [
+ "world-core",
+ "world-defs",
+ "world-model",
+ "world-runtime",
+ "world-standard",
 ]

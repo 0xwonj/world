@@ -2,7 +2,13 @@
 
 ## Status
 
-Current design draft.
+Active nonnormative social-domain exploration.
+
+This document proposes social vocabulary and algorithms. Accepted social
+state, actor-relative interpretation, institutional fact ownership, evidence
+disclosure, and commit authority are defined by
+[System Architecture](../architecture/target-architecture/system-architecture.md)
+and [Cognition And Agency](../architecture/target-architecture/cognition-and-agency.md).
 
 ## Source Ideas
 
@@ -11,10 +17,10 @@ Current design draft.
 - [Layered Truth And AI Co-Authority](../ideas/layered-truth-and-ai-coauthority.md)
 - [Epistemic State / Agent Memory](../research/epistemic-state-and-agent-memory.md)
 
-## Related Design Owners
+## Related design inputs
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
-- [Simulation Transition Compiler](simulation-transition-compiler.md)
+- [Epistemic State](epistemic-state.md)
 
 ## Purpose
 
@@ -457,7 +463,7 @@ is not enough.
   may derive actor-owned authority actions from internalized or recognized
   social authority.
 
-## Stable Decisions
+## Social-domain design hypotheses
 
 - Social/institutional state is typed soft truth, not an unstructured fact
   graph.

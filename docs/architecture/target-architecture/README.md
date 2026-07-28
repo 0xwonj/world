@@ -5,10 +5,12 @@
 This directory is the normative architecture for the redesign of `world`.
 
 The repository is still an early implementation, so these documents describe
-the target system rather than the current code. When a document elsewhere
-under `docs/architecture/` or `docs/design/` conflicts with this package, this
-package wins. Older documents remain useful as detailed research and design
-inputs until they are either reconciled or archived.
+the target system rather than the current code. Start with the repository-wide
+[Documentation Guide](../../README.md). When a document elsewhere under
+`docs/architecture/`, `docs/design/`, or `docs/research/` conflicts with this
+package, this package wins. The [Design Index](../../design/README.md) and
+[Research Index](../../research/README.md) classify nonnormative inputs;
+legacy architecture files are frozen history.
 
 ### Contract ownership inside this package
 
@@ -26,7 +28,7 @@ not create a second definition.
 | Compiler stages, pack/extension trust, artifact closure, research/run/analysis artifacts, trace products | `extensibility-and-research.md` |
 | Decision rationale and rejected alternatives | `decisions.md` |
 | Boundary, failure, recovery, and conformance scenarios | `validation-scenarios.md` |
-| Stable milestone order, outcomes, and exit gates | `implementation-roadmap.md` |
+| Stable milestone order, outcomes, exit gates, and vision-to-evidence traceability | `implementation-roadmap.md` |
 | Active milestone status, work packages, and completion evidence | `docs/implementation/target-rewrite/` |
 | Mapping from superseded documents/code to the target | `legacy-reconciliation.md` |
 
@@ -144,7 +146,7 @@ flowchart LR
 
     O --> P["Atomic AuthorityRecord"]
     P --> Q["World + control + scheduler"]
-    P --> HIST["Ingress / moment / management history"]
+    P --> HIST["Admission / moment / management history"]
     Q --> E
     P --> Z["Optional self-contained ReactionEnvelope"]
     Z --> T["Post-commit routing"]
@@ -193,7 +195,13 @@ Recommended reading order:
    replaced parts of the earlier documents and implementation.
 
 Research support is recorded in
-[Architecture Redesign Research Synthesis](../../research/architecture-redesign-synthesis.md).
+[Architecture Redesign Research Synthesis](../../research/architecture-redesign-synthesis.md)
+and
+[Gameplay Composition And Evolution Research](../../research/gameplay-composition-and-evolution-research.md).
+Accepted dispositions from the latter are recorded by
+[Extensibility and Research](extensibility-and-research.md#gameplay-composition-research-disposition)
+and the roadmap's M8 gates rather than by treating the research document as a
+second specification.
 
 Current execution status and rolling milestone plans are under
 [`docs/implementation/target-rewrite/`](../../implementation/target-rewrite/README.md).
@@ -209,13 +217,28 @@ Current execution status and rolling milestone plans are under
 | Separate appraisal, intent, activity, and action cadences | Comprehensive emotion or social ontology |
 | Persistent intent and activity; one-shot action opportunities | Universal plan representation |
 | Grounded action candidates selected by ID | Full action or effect DSL |
-| Atomic ingress, moment, and management authority records | Durable database backend |
+| Atomic admission, moment, and management authority records | Durable database backend |
 | Durable run-attempt gate and unique terminal authority cursor | Distributed run scheduling |
 | Checkpoint, artifact closure, and compactable committed history | Distributed simulation |
 | One active representation per resolution scope | Population aggregation algorithms |
 | Typed extension trust ladder | Wasm runtime and interfaces |
 | Separate execution, trajectory, study, capture, and analysis identities/artifacts | Server, editor, and package registry |
 
-Deferral is not omission. Each deferred concern already has an owner and a
-boundary through which a future implementation can be added without changing
-who controls authoritative state.
+Deferral is not omission. Each concern listed above has an owner and a boundary
+through which a future implementation can be added without changing who
+controls authoritative state. A newly proposed deferred concern still requires
+explicit ownership and disposition; it is not accepted merely because a
+research or design note names it.
+
+## Roadmap completion
+
+M1 through M7 establish the deterministic engine foundation, actor-relative
+agency, durability, product surfaces, and individual multi-resolution
+execution. The target roadmap is complete only when M8 has also falsified the
+gameplay-composition boundary with the mandatory cross-primitive,
+physical-to-social, authoring-locality, persistence, resolution, and integrated
+product scenarios.
+
+This completion rule does not require a content-complete game. It requires
+executable evidence that the small architecture can carry the promised game
+depth without a second authority path or a speculative universal framework.

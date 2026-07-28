@@ -2,11 +2,14 @@
 
 ## Status
 
-Current design principle.
+Partially superseded nonnormative design principle.
 
 This document defines how the reusable simulation foundation stays separate
 from game-system packs and specific game content. It is not an implementation
 plugin API, package format, or content roadmap.
+
+The accepted extension tiers, authority boundary, and package ownership live
+in the [Target Architecture Package](../architecture/target-architecture/README.md).
 
 ## Source Context
 
@@ -441,7 +444,7 @@ and how consequences are balanced.
 - content definitions that only produce prose when gameplay depends on
   structured state
 
-## Stable Decisions
+## Design conclusions
 
 - The project should build a reusable simulation foundation for deep,
   actor-relative, causally inspectable RPG and sandbox worlds.

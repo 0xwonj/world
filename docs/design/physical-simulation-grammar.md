@@ -2,7 +2,14 @@
 
 ## Status
 
-Current design draft.
+Active nonnormative gameplay-domain exploration.
+
+This document proposes physical vocabulary and composition pressure. It does
+not define runtime authority, a universal state representation, or a primitive
+plugin API. Those boundaries live in the
+[Target Architecture Package](../architecture/target-architecture/README.md);
+the first cross-primitive proof belongs to the roadmap's gameplay-composition
+milestone.
 
 ## Source Ideas
 
@@ -10,11 +17,11 @@ Current design draft.
 - [World Representation / Query Model](../research/world-representation-query-model.md)
 - [Engine Architecture Research Entry](../research/engine-architecture-entry.md)
 
-## Related Design Owners
+## Related design inputs
 
 - [Engine Core And Game System Boundary](engine-core-and-game-system-boundary.md)
 - [Standard World Library And Primitive Semantics](standard-world-library.md)
-- [Simulation Transition Compiler](simulation-transition-compiler.md)
+- [Gameplay Composition And Evolution Research](../research/gameplay-composition-and-evolution-research.md)
 
 ## Purpose
 
@@ -417,7 +424,7 @@ The grammar should be tested against:
 - ritual seal emitting magical signal and blocking passage
 - stolen shrine item preserving physical transfer separate from `SocialClaim`
 
-## Stable Decisions
+## Gameplay design hypotheses
 
 - Physical simulation is discrete RPG physics, not continuous real-world
   physics.

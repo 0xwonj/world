@@ -1,6 +1,8 @@
 use core::fmt;
 
-use world_authoring::{AuthoringCompiler, CompilationDiagnostic, CompileRequest, PackSource};
+use world_authoring::{
+    AuthoringCompiler, CompilationDiagnostic, CompileRequest, PackSource, SourceGraphError,
+};
 use world_defs::{
     ActionBindingData, ActionData, ArtifactError, ArtifactValidator, BindingName, DefinitionKey,
     EffectCallData, EngineProtocolVersion, EventData, EventEmissionData, EventFieldBindingData,
@@ -178,4 +180,55 @@ fn invalid_source_returns_one_diagnostic_and_no_partial_compilation() {
         Some(CompilationDiagnostic::Artifact { error, .. })
             if matches!(error.as_ref(), ArtifactError::EmptyEffects { .. })
     ));
+}
+
+#[test]
+fn conflicting_source_coordinates_are_rejected_independent_of_input_order() {
+    let catalog = SemanticInterfaceCatalog::default();
+    let pack = valid(PackKey::parse("world.conflict"));
+    let first = PackCoordinate::new(pack.clone(), PackVersion::new(1, 0, 0));
+    let second = PackCoordinate::new(pack.clone(), PackVersion::new(2, 0, 0));
+    let first_source = PackSource::new(
+        SourceSnapshotId::from_bytes([0x61; 32]),
+        EngineProtocolVersion::new(1),
+        first.clone(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let second_source = PackSource::new(
+        SourceSnapshotId::from_bytes([0x62; 32]),
+        EngineProtocolVersion::new(1),
+        second.clone(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let compiler = AuthoringCompiler::new(&catalog);
+
+    let forward = compiler.compile(CompileRequest::new(
+        first.clone(),
+        vec![first_source.clone(), second_source.clone()],
+    ));
+    let reverse = compiler.compile(CompileRequest::new(
+        first.clone(),
+        vec![second_source, first_source],
+    ));
+    assert_eq!(forward, reverse);
+
+    let diagnostics = match forward {
+        Ok(_) => panic!("conflicting source coordinates unexpectedly compiled"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(
+        diagnostics.iter().next(),
+        Some(&CompilationDiagnostic::SourceGraph(
+            SourceGraphError::ConflictingPackages {
+                pack,
+                first: Box::new(first),
+                second: Box::new(second),
+            }
+        ))
+    );
 }

@@ -2,16 +2,19 @@
 
 ## Status
 
-Supporting convention draft.
+Frozen pre-target convention draft.
 
-These conventions remain active only where they do not conflict with
-`AGENTS.md` or the normative
-[`target-architecture/`](target-architecture/README.md) package.
+Do not use this file as current implementation guidance. It contains
+superseded crate routing, identifiers, and authority-path terminology retained
+only as historical context. Current repository rules live in
+[`AGENTS.md`](../../AGENTS.md); current package, API, identity, and dependency
+contracts live in the normative
+[Target Rust Code Architecture](target-architecture/code-architecture.md).
 
 ## Purpose
 
-This document records implementation choices that are safe to decide before
-Phase 0 code begins.
+This document records supporting implementation conventions that remain useful
+after the target rewrite began.
 
 It is intentionally narrow. It should capture conventions that protect the
 whole architecture, not library choices that are better made during later

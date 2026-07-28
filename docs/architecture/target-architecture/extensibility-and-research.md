@@ -30,12 +30,54 @@ network access and materializes only the evaluator's bounded role input.
 
 Examples:
 
-- actors, objects, locations, and initial state;
-- item and stat values;
+- reusable actor, object, location, item, and stat declarations;
 - concrete recipes, encounters, and dialogue;
-- scenario parameters.
+- game- or lab-owned scenario parameters and initial-state declarations.
 
 Content data contains no executable semantic operation.
+
+T0 is an authority tier, not one universal artifact family. Its durable home
+depends on what the data means:
+
+```text
+reusable content declaration
+  -> pack-owned checked data
+  -> may be referenced by RuntimeDefinitionSet definitions
+
+research scenario declaration
+  -> world-lab-owned ScenarioArtifact
+  -> planning provenance and a checked recipe for an InitialStateRoot
+
+game/product initial-world source
+  -> game- or product-owned authoring input
+  -> checked materialization into an InitialStateRoot
+
+InitialStateRoot
+  -> exact materialized authoritative starting state
+  -> runtime contract, not source content and not a second definition set
+```
+
+The same actor archetype may be reusable pack content while one actor instance
+is materialized in a root. Pack identity does not replace instance identity,
+and a `ScenarioArtifact` does not become runtime mutation authority.
+
+The foundation `ArtifactBlobV1` contains no reusable T0 content-data family;
+it contains only its checked T1 action/event vocabulary. M6 exercises that
+existing T1 vocabulary through source authoring, diagnostics, preview, and
+child-epoch construction. M8 introduces the first minimal reusable T0
+pack-content family only with the concrete gameplay and root-materialization
+consumer that fixes its schema and validation rules. That addition uses a
+successor artifact protocol rather than changing the meaning of
+`ArtifactBlobV1`.
+
+Root materialization is an offline checked construction. It resolves every
+definition reference against one exact `RuntimeDefinitionSet`, validates the
+complete accepted state, runtime-control state, scheduler, lineage, and
+execution compatibility, and then produces the canonical
+`InitialStateRootId`. Product- or lab-specific source schemas remain outside
+the runtime. After session creation, new content can affect accepted state only
+through the normal admission, moment, or management protocols; changing a
+source pack or scenario never mutates a live epoch.
 
 ### T1: checked typed IR
 
@@ -312,12 +354,40 @@ reload does not mutate a reproducible session in place.
 The engine shares compiler infrastructure, not one universal instruction set.
 It also does not create one `*IR` type for every domain noun.
 
-The initial artifact model contains only families with an immediate verifier
-and runtime consumer:
+Definition families enter the artifact protocol only with an immediate
+producer, verifier, interpreter or other runtime consumer, identity rule, and
+validation scenario. The rollout is therefore explicit:
 
-- checked action, event, and process definitions;
-- `EffectProgramIR`;
-- the stage-specific condition roots required by those definitions.
+```text
+foundation artifact protocol (M1-M4 evidence)
+  checked action definitions
+  checked physical-event definitions
+  nonempty ordered typed effect calls embedded in an action
+
+product authoring proof (M6)
+  the same existing T1 vocabulary through source, diagnostics, preview,
+  and explicit child-epoch construction
+
+gameplay composition proof (M8)
+  the first minimal reusable T0 content-data family, with a real
+    gameplay and root-materialization consumer
+  the first checked process and stage-specific condition families
+  plus only the observation, social, capability, or other declarations
+  required by the accepted cross-system scenario
+  a separate locality fixture composed from the now-installed T0/T1
+    vocabulary without another artifact-family or authority-kernel change
+```
+
+The foundation's ordered effect-call sequence is the first effect-program
+representation. It need not acquire a public `EffectProgramIR` wrapper merely
+to match an architectural noun. A separately named effect IR is introduced
+only when a real producer or consumer needs shared programs, structured
+control, independent verification, or transformation.
+
+The relocation process introduced by M4 is a concrete trusted runtime process,
+not evidence that an authored process-definition family already exists.
+Conversely, M8 must not satisfy its process gate by hard-coding another closed
+process variant and calling it pack extensibility.
 
 Observation, projection, appraisal, intent-template, scheduler-monitor, and
 decision-semantics representations are introduced only with their first real
@@ -365,6 +435,34 @@ host-trusted runtime implementation and configuration identity.
 
 Pack activation fails unless every required semantic-interface digest resolves
 to the matching implementation.
+
+### Definition activation and primitive composition
+
+`ActivatedDefinitionRegistry` reconstructs checked T0/T1 definitions, exact
+semantic bindings, indexes, and caches. It does not own T3 state owners or turn
+them into an open registry of mutable subsystems.
+
+A T3 primitive remains a concrete, statically linked participant installed by
+the composition root. Adding one may add its own private state, gate,
+preparation logic, codecs, migration, and wiring, but it must not change the
+authority laws or grant packs an implementation callback. Cross-owner domain
+work composes through the existing prepared-subtransaction and combined
+invariant protocol rather than through handler order or direct mutable calls.
+
+This distinction is a required M8 proof:
+
+- after the required minimal T0 family is installed, one separate mechanic
+  composed entirely from the then-existing T0/T1 vocabulary changes
+  definitions and tests, not artifact-family schemas, the authority kernel, or
+  unrelated primitive owners;
+- one genuinely new T3 primitive may add concrete owner-local code and
+  composition-root wiring without reversing dependency direction or changing
+  unrelated public APIs;
+- a transition spanning existing owners declares typed reads, writes,
+  resources, invariants, and participating-gate receipts before one atomic
+  commit;
+- no global type-erased state-owner, string resource path, or universal
+  semantic dispatcher is presumed in advance.
 
 ### Source syntax
 
@@ -568,6 +666,27 @@ A future component must:
 
 The run record captures module digest, interface version, limits, input hashes,
 and explicit randomness. A general WASI environment is not granted by default.
+
+## Gameplay-composition research disposition
+
+The gameplay-composition research separates accepted architecture from
+hypotheses that still need implementation evidence. Its recommendations have
+the following normative disposition:
+
+| Research recommendation | Disposition |
+|---|---|
+| Keep T0/T1, T2, and T3 contracts distinct | Accepted clarification of the trust ladder |
+| Keep definition activation separate from T3 state-owner composition | Accepted; no generic state-owner registry |
+| Preserve semantic epochs as the evolution boundary | Already normative; M5 proves it and M6 exercises it |
+| Use the existing prepared-subtransaction contract across owners | Already normative; M8 must supply cross-primitive evidence |
+| Separate pure derivation from authoritative transition | Accepted architectural law; concrete incremental representation remains evidence-gated |
+| Build a definition-level semantic dependency graph | Investigate in M8; not a required universal runtime graph or accepted public API |
+| Prove incremental evaluation against full recomputation | Required only for an incremental derived view actually introduced by a milestone |
+| Use the three interacting gameplay slices as a falsification suite | Adopted as the M8 composition gate |
+
+The three slices may motivate narrower shared types after they run. They do
+not pre-authorize a universal component model, effect language, resource
+registry, event bus, or primitive plugin trait.
 
 ## Research architecture
 
@@ -970,8 +1089,12 @@ held-out scenario or partner conditions where relevant.
 
 ```text
 Authoritative history
-  IngressBatchRecords, MomentBatchRecords, and ManagementBatchRecords
-  captured external inputs and evaluator results
+  AuthorityRecord:
+    Admission(Commands(IngressBatchRecord))
+    | Admission(ActionEvaluation(ActionEvaluationAdmissionRecord))
+    | Moment(MomentBatchRecord)
+    | Management(ManagementBatchRecord)
+  captured command inputs and separately captured evaluator results
   nested accepted/rejected AttemptRecords and accepted CommitRecords
   recovery and causal audit
 
@@ -1148,3 +1271,16 @@ ports. None requires widening runtime's mutation authority.
 19. One physical run attempt has one durable finalization cursor selected by
     its exact termination/finalization contract; analysis never chooses or
     changes that prefix.
+20. Reusable T0 declarations, scenario provenance, and the materialized
+    `InitialStateRoot` remain distinct artifacts with distinct owners and
+    identities.
+21. After the required minimal T0 family is installed, a separate mechanic
+    composed from the existing T0/T1 vocabulary requires neither another
+    artifact-family schema nor an authority-kernel change; a new T3 primitive
+    may add concrete owner-local implementation and composition-root wiring
+    without reversing existing dependency direction.
+22. Pure derivations cannot mutate accepted state, and any retained
+    incremental result introduced by a milestone is checked against full
+    recomputation.
+23. Gameplay-facing API stabilization follows, rather than precedes, the M8
+    cross-primitive and cross-system composition evidence.

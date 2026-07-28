@@ -20,6 +20,15 @@ const TRANSFER_EVENT: &str = "item-transferred";
 const CAN_TRANSFER_OPERATION: &str = "can-transfer-item";
 const TRANSFER_OPERATION: &str = "transfer-item";
 
+/// Returns the durable definition key of the standard transfer action.
+#[must_use]
+pub fn transfer_action_key() -> DefinitionKey {
+    DefinitionKey::new(
+        declared(PackKey::parse(STANDARD_PACK_KEY)),
+        declared(LocalDefinitionName::parse(TRANSFER_ACTION)),
+    )
+}
+
 /// Constructs the standard transfer semantic-interface contract.
 #[must_use]
 pub fn transfer_interface_descriptor() -> SemanticInterfaceDescriptor {
